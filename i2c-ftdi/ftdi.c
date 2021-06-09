@@ -353,7 +353,7 @@ static const struct i2c_algorithm ftdi_usb_i2c_algo = {
 };
 
 static const struct usb_device_id ftdi_id_table[] = {
-	{ USB_DEVICE(0x0005, 0x0001) },
+	{ USB_DEVICE(0x0403, 0x6011) },
 	{ USB_DEVICE(0x0403, 0x6010) },
     { }
 };
@@ -608,7 +608,7 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	struct usb_device *dev = interface_to_usbdev(interface);
 	struct ftdi_usb *ftdi;
 	int ret;
-
+	int inf;
 	(void) id;
 
 	ftdi = kzalloc(sizeof(*ftdi), GFP_KERNEL);
@@ -617,6 +617,12 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 
 	ftdi->udev = usb_get_dev(dev);
 	ftdi->interface = usb_get_intf(interface);
+	inf = ftdi->interface->cur_altsetting->desc.bInterfaceNumber;
+	if (inf == 1)  {
+		dev_info(&interface->dev, "Ignoring Interfac\n");
+		return -ENODEV;
+		}
+
 	ftdi->io_timeout = FTDI_IO_TIMEOUT;
 	ftdi->freq = FTDI_I2C_FREQ;
 	ftdi->buffer = kzalloc(FTDI_IO_BUFFER_SIZE, GFP_KERNEL);
