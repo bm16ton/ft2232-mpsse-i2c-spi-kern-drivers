@@ -32,9 +32,13 @@ the spi driver originally came from;
 
  These have been tested on ft2232h, kernel 5.12,and on mpsse bank A only.
 
- Even tho these will bind to both banks doubtful bank B will work in
+ UPDATE i2c-ftdi only binds to bank A now,also patch included for ftdi-sio
 
- current configuration.
+ to skip bank A if Product string is ft2232H-16ton (use ftdi_eeprom)
+
+ ---old Even tho these will bind to both banks doubtful bank B will work in
+
+ ---oldcurrent configuration.
 
  SPI TODO, write makefile (ez enuff) find better way to supply spi device
 
