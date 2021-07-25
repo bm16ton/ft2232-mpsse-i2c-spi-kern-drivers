@@ -1,0 +1,1 @@
+cmd_/home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.ko := ld -r  -EL  -maarch64elf  --build-id=sha1  -T scripts/module.lds -o /home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.ko /home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.o /home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.mod.o;  true

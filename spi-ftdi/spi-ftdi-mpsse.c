@@ -359,10 +359,15 @@ static int ftdi_spi_transfer_one(struct spi_master *master,
 			__func__, t->cs_change, spi->chip_select, t->len);
 		dev_dbg(&master->dev, "%s: txb 0x%p, rxb 0x%p, bpw %d\n",
 			__func__, t->tx_buf, t->rx_buf, t->bits_per_word);
-
+/*
 		if (t->tx_buf && t->rx_buf)
 			ret = ftdi_spi_tx_rx(priv, spi, t);
 		else if (t->tx_buf)
+			ret = ftdi_spi_tx(priv, t->tx_buf, t->len);
+		else if (t->rx_buf)
+			ret = ftdi_spi_rx(priv, t->rx_buf, t->len);
+*/
+        if (t->tx_buf)
 			ret = ftdi_spi_tx(priv, t->tx_buf, t->len);
 		else if (t->rx_buf)
 			ret = ftdi_spi_rx(priv, t->rx_buf, t->len);
@@ -373,8 +378,8 @@ static int ftdi_spi_transfer_one(struct spi_master *master,
 
 		msg->actual_length += t->len;
 
-		if (t->delay_usecs) {
-			u16 us = t->delay_usecs;
+		if (t->delay.value) {
+			u16 us = t->delay.value;
 
 			if (us <= 10)
 				udelay(us);

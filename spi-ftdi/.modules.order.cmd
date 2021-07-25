@@ -1,0 +1,1 @@
+cmd_/home/maddocks/src/ft2232-i2c/github/spi-ftdi/modules.order := {   echo /home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.ko;   echo /home/maddocks/src/ft2232-i2c/github/spi-ftdi/spi-ftdi-mpsse.ko; :; } | awk '!x[$$0]++' - > /home/maddocks/src/ft2232-i2c/github/spi-ftdi/modules.order

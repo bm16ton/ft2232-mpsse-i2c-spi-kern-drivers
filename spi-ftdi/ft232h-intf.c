@@ -1200,19 +1200,21 @@ static int ft232h_intf_fpp_remove(struct usb_interface *intf)
 
 static struct spi_board_info ftdi_spi_bus_info[] = {
     {
-    .modalias	= "adc0834",
+//    .modalias	= "spidev",
+    .modalias	= "w25q32",
     .mode		= SPI_MODE_0,
-    .max_speed_hz	= 400000,    //60000000,
-    .bus_num	= 0,
-    .chip_select	= 0, // TCK/SK at ADBUS0
-    },
-/*    {
-    .modalias	= "spidev",
-    .mode		= SPI_MODE_0 | SPI_LSB_FIRST | SPI_CS_HIGH,
+//    .mode		= SPI_MODE_0 | SPI_LSB_FIRST | SPI_CS_HIGH,
     .max_speed_hz	= 30000000,
     .bus_num	= 0,
-    .chip_select	= 5, // GPIOH0 at ACBUS0
-    },     */
+    .chip_select	= 0, // GPIOH0 at ACBUS0
+    },
+    {
+    .modalias	= "spidev",
+    .mode		= SPI_MODE_0,
+    .max_speed_hz	= 30000000,
+    .bus_num	= 0,
+    .chip_select	= 5, // TCK/SK at ADBUS0
+    },
    };
 
 static const struct mpsse_spi_platform_data ftdi_spi_bus_plat_data = {
@@ -1378,6 +1380,12 @@ static int ft232h_intf_probe(struct usb_interface *intf,
 	const struct ft232h_intf_info *info;
 	unsigned int i;
 	int ret = 0;
+	int inf;
+	inf = intf->cur_altsetting->desc.bInterfaceNumber;
+	if (inf > 0) {
+		dev_info(&intf->dev, "Ignoring Interface\n");
+		return -ENODEV;
+		}
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -1469,6 +1477,8 @@ static struct usb_device_id ft232h_intf_table[] = {
 		.driver_info = (kernel_ulong_t)&fpga_cfg_fifo_intf_info },
 	{ USB_DEVICE(FTDI_VID, ARRI_SPI_INTF_PRODUCT_ID),
 		.driver_info = (kernel_ulong_t)&fpga_cfg_spi_intf_info },
+	{ USB_DEVICE(FTDI_VID, 0x6011),
+        .driver_info = (kernel_ulong_t)&ftdi_spi_bus_intf_info },
 	{ USB_DEVICE(FTDI_VID, 0x6010),
         .driver_info = (kernel_ulong_t)&ftdi_spi_bus_intf_info },
 	{}

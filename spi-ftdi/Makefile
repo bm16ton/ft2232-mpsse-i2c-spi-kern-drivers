@@ -1,6 +1,7 @@
 ifneq ($(KERNELRELEASE),)
 
-obj-m := ftdi.o
+obj-m := ft232h-intf.o
+obj-m += spi-ftdi-mpsse.o
 
 else
 
@@ -14,4 +15,5 @@ endif
 .PHONY: clean
 
 clean:
-		rm -f modules.order Module.symvers *.o *.ko *.mod.* *.mod
+	rm -f modules.order Module.symvers *.o *.ko *.mod.* *.mod
+

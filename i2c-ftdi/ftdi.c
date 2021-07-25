@@ -10,8 +10,14 @@
 
 #include "mpsse.h"
 
+int i2c_ftdi_100k;
+module_param_named(100k, i2c_ftdi_100k, int, 0444);
+MODULE_PARM_DESC(100k, "Drop bus from 400k to 100k");
+
+EXPORT_SYMBOL(i2c_ftdi_100k);
+
 const int FTDI_IO_TIMEOUT = 5000;
-const unsigned FTDI_I2C_FREQ = 100000;
+//const unsigned FTDI_I2C_FREQ = 400000;
 const size_t FTDI_IO_BUFFER_SIZE = 65536;
 //const u16 FTDI_BIT_MODE_RESET = 0x0000;
 //const u16 FTDI_BIT_MODE_MPSSE = 0x0200;
@@ -618,13 +624,18 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	ftdi->udev = usb_get_dev(dev);
 	ftdi->interface = usb_get_intf(interface);
 	inf = ftdi->interface->cur_altsetting->desc.bInterfaceNumber;
-	if (inf == 1)  {
-		dev_info(&interface->dev, "Ignoring Interfac\n");
+	if (inf > 0) {
+		dev_info(&interface->dev, "Ignoring Interface\n");
 		return -ENODEV;
 		}
 
 	ftdi->io_timeout = FTDI_IO_TIMEOUT;
-	ftdi->freq = FTDI_I2C_FREQ;
+	if (i2c_ftdi_100k) {
+	ftdi->freq = 100000;
+	} else {
+	ftdi->freq  = 400000;
+	}
+//	ftdi->freq = FTDI_I2C_FREQ;
 	ftdi->buffer = kzalloc(FTDI_IO_BUFFER_SIZE, GFP_KERNEL);
 	ftdi->buffer_size = FTDI_IO_BUFFER_SIZE;
 	if (!ftdi->buffer) {

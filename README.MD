@@ -40,7 +40,7 @@ the spi driver originally came from;
 
  ---oldcurrent configuration.
 
- SPI TODO, write makefile (ez enuff) find better way to supply spi device
+ SPI TODO,find better way to supply spi device
 
  platformdata (mod params? add info to eeprom?) maybe do a dirty hack for irq pin.
 
@@ -51,5 +51,22 @@ the spi driver originally came from;
  update more later.
 
 
+UPDATE the rx and tx function ftdi_spi_tx_rx was erroring on spidev devices without
 
+mosi, so its disabled. lines 362 uncomment/recomment that section to bring back
 
+in spi-ftdimpsse.c Also starting sumwhere in 5.13 spi delay_usecs got switched to
+
+delay.value. If on older kernel replace lines starting at 381 in spi-ftdimpsse.c
+
+		if (t->delay.value) {
+			u16 us = t->delay.value;
+
+with;
+
+		if (t->delay_usecs) {
+			u16 us = t->delay_usecs;
+
+The i2c driver now has a kernel param to switch 400k and 100k
+
+TODO make i2c speed a sysfs option, add gpio to i2c, etc etc

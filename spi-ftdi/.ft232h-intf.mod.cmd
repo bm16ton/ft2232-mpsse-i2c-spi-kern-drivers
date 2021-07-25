@@ -1,0 +1,1 @@
+cmd_/home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.mod := { echo  /home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.o;  echo; } > /home/maddocks/src/ft2232-i2c/github/spi-ftdi/ft232h-intf.mod
