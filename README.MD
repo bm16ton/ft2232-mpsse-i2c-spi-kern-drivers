@@ -15,14 +15,14 @@ cp ../ft2232-mpsse-i2c-spi-kern-drivers/i2c-ftdi/i2c-ftdi.c drivers/i2c/busses/i
 edit drivers/i2c/busses/Kconfig
 
 EXAMPLE KCONFIG FOR i2c-ftdi;
-
+```
 config I2C_FTDI
 	tristate "ft2232h I2C master support"
 	depends on USB
 	help
 	  Say yes here to access the I2C part of the ftdi
 	  ft2232h, and probly others.
-
+```
 EXAMPLE Makefile entry for i2c-ftdi
 
 obj-$(CONFIG_I2C_FTDI)	+= i2c-ftdi.o
@@ -32,7 +32,7 @@ for spi;
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/ft232h-intf.c drivers/usb/misc/
 
 EXAMPLE Kconfig for ft232h-intf; edit drivers/usb/misc/Kconfig;
-
+```
 config USB_FT232H_INTF
 	tristate "FTDI FT232H SPI and platform data configuration interface driver"
 	help
@@ -41,9 +41,9 @@ config USB_FT232H_INTF
 	  such as spi-ftdi-mpsse, etc must be enabled in order to use the
 	  functionality of the device.
 
-	  To compile this driver as a module, choose M here: the
-	  module will be called ft232h_intf.
-
+	 To compile this driver as a module, choose M here: the
+	 module will be called ft232h_intf.
+```
 EXAMPLE Makefile for ft232h-intf
 
 obj-$(CONFIG_USB_FT232H_INTF)		+= ft232h-intf.o
@@ -51,7 +51,7 @@ obj-$(CONFIG_USB_FT232H_INTF)		+= ft232h-intf.o
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/spi-ftdi-mpsse.c drivers/spi/
 
 Example Kconfig; drivers/spi/Kconfig;
-
+```
 config SPI_FTDI_MPSSE
 	tristate "FTDI MPSSE SPI controller"
 	depends on USB_FT232H_INTF || COMPILE_TEST || GPIOLIB && SYSFS
@@ -60,7 +60,7 @@ config SPI_FTDI_MPSSE
 	help
 	  FT232H supports SPI in MPSSE mode. This driver provides MPSSE
 	  SPI controller in master mode.
-
+```
 example Makefile; 
 
 obj-$(CONFIG_SPI_FTDI_MPSSE)		+= spi-ftdi-mpsse.o
