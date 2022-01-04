@@ -5,6 +5,8 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 
+#define EN_ADAPTIVE     0x96
+#define DIS_ADAPTIVE     0x97
 
 struct ftdi_mpsse_cmd {
 	u8 *buffer;
@@ -31,6 +33,12 @@ static inline int ftdi_mpsse_command(struct ftdi_mpsse_cmd *cmd, u8 command)
 		return -ENOMEM;
 	cmd->buffer[cmd->offset++] = command;
 	return 0;
+}
+
+static inline int ftdi_mpsse_enable_adaptive_clocking(
+	struct ftdi_mpsse_cmd *cmd)
+{
+	return ftdi_mpsse_command(cmd, 0x96);
 }
 
 static inline int ftdi_mpsse_disable_adaptive_clocking(

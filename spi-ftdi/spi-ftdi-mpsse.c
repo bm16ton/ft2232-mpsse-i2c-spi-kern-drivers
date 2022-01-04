@@ -1,11 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * FTDI FT232H MPSSE SPI controller driver
- *
- * Copyright (C) 2017 DENX Software Engineering
- * Anatolij Gustschin <agust@denx.de>
- */
 
+// SPDX-License-Identifier: GPL-2.0
+//
+// FTDI FT232H MPSSE SPI controller driver
+//
+// Copyright (C) 2017 - 2018 DENX Software Engineering
+// Anatolij Gustschin <agust@denx.de>
+//
+
+#include <linux/bits.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -20,19 +22,23 @@
 #include <linux/usb.h>
 #include <linux/usb/ft232h-intf.h>
 
+int spi_ftdi_mpsse_debug;
+module_param_named(debug, spi_ftdi_mpsse_debug, int, 0444);
+MODULE_PARM_DESC(debug, "Turn on tx/rx details");
+
 enum gpiol {
-	SK	= BIT(0),
-	DO	= BIT(1),
-	DI	= BIT(2),
-	CS	= BIT(3),
+	MPSSE_SK	= BIT(0),
+	MPSSE_DO	= BIT(1),
+	MPSSE_DI	= BIT(2),
+	MPSSE_CS	= BIT(3),
 };
 
 struct ftdi_spi {
 	struct platform_device *pdev;
 	struct usb_interface *intf;
-	struct spi_master *master;
+	struct spi_controller *master;
 	const struct ft232h_intf_ops *iops;
-	struct gpiod_lookup_table *lookup[13];
+	struct gpiod_lookup_table *lookup[FTDI_MPSSE_GPIOS];
 	struct gpio_desc **cs_gpios;
 
 	u8 txrx_cmd;
@@ -42,15 +48,17 @@ struct ftdi_spi {
 	u16 last_mode;
 };
 
-static void ftdi_spi_chipselect(struct ftdi_spi *priv, struct spi_device *spi,
-				bool value)
+static void ftdi_spi_set_cs(struct spi_device *spi, bool enable)
 {
-	int cs = spi->chip_select;
+	struct ftdi_spi *priv = spi_controller_get_devdata(spi->master);
+	u16 cs = spi->chip_select;
 
-	dev_dbg(&priv->master->dev, "%s: CS %d, mode(%d), val %d\n",
-		__func__, cs, (spi->mode & SPI_CS_HIGH), value);
+	if (spi_ftdi_mpsse_debug) {
+	dev_dbg(&priv->pdev->dev, "%s: CS %u, cs mode %d, val %d\n",
+		__func__, cs, (spi->mode & SPI_CS_HIGH), enable);
+	}
 
-	gpiod_set_raw_value_cansleep(priv->cs_gpios[cs], value);
+	gpiod_set_raw_value_cansleep(priv->cs_gpios[cs], enable);
 }
 
 static inline u8 ftdi_spi_txrx_byte_cmd(struct spi_device *spi)
@@ -92,7 +100,7 @@ static inline int ftdi_spi_loopback_cfg(struct ftdi_spi *priv, int on)
 
 	ret = priv->iops->write_data(priv->intf, priv->xfer_buf, 1);
 	if (ret < 0)
-		dev_warn(&priv->master->dev, "loopback %d failed\n", on);
+		dev_warn(&priv->pdev->dev, "loopback %d failed\n", on);
 	return ret;
 }
 
@@ -100,8 +108,7 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 			  struct spi_transfer *t)
 {
 	const struct ft232h_intf_ops *ops = priv->iops;
-	struct spi_master *master = priv->master;
-	struct device *dev = &master->dev;
+	struct device *dev = &priv->pdev->dev;
 	void *rx_offs;
 	const void *tx_offs;
 	size_t remaining, stride;
@@ -109,9 +116,6 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 	int ret, tout = 10;
 	const u8 *tx_data = t->tx_buf;
 	u8 *rx_data = t->rx_buf;
-
-	if (!t->len)
-		return 0;
 
 	ops->lock(priv->intf);
 
@@ -140,9 +144,10 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 			dev_err(dev, "%s: xfer failed %d\n", __func__, ret);
 			goto fail;
 		}
+		if (spi_ftdi_mpsse_debug) {
 		dev_dbg(dev, "%s: WR %zu byte(s), TXRX CMD 0x%02x\n",
 			__func__, stride, priv->txrx_cmd);
-
+		}
 		rx_stride = min_t(size_t, stride, SZ_512);
 
 		ret = ops->read_data(priv->intf, priv->xfer_buf, rx_stride);
@@ -169,7 +174,9 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 
 		remaining -= stride;
 		tx_offs += stride;
+		if (spi_ftdi_mpsse_debug) {
 		dev_dbg(dev, "%s: WR remains %zu\n", __func__, remaining);
+		}
 	}
 
 	ret = 0;
@@ -183,37 +190,55 @@ err:
 	return ret;
 }
 
-static int ftdi_spi_tx(struct ftdi_spi *priv, const u8 *tx_data, size_t len)
+static int ftdi_spi_push_buf(struct ftdi_spi *priv, const void *buf, size_t len)
 {
-	struct spi_master *master = priv->master;
+	size_t bytesleft = len;
+	int ret;
+
+	do {
+		ret = priv->iops->write_data(priv->intf, buf, bytesleft);
+		if (ret < 0)
+			return ret;
+
+		buf += ret;
+		bytesleft -= ret;
+	} while (bytesleft);
+
+	return len;
+}
+
+static int ftdi_spi_tx(struct ftdi_spi *priv, struct spi_transfer *xfer)
+{
+	const void *tx_offs;
 	size_t remaining, stride;
 	int ret;
 
-	if (!len)
-		return 0;
-
 	priv->iops->lock(priv->intf);
 
-	remaining = len;
+	tx_offs = xfer->tx_buf;
+	remaining = xfer->len;
+
 	do {
-		stride = min_t(size_t, remaining, SZ_64K - 3);
+		stride = min_t(size_t, remaining, sizeof(priv->xfer_buf) - 3);
 
 		priv->xfer_buf[0] = priv->tx_cmd;
 		priv->xfer_buf[1] = stride - 1;
 		priv->xfer_buf[2] = (stride - 1) >> 8;
 
-		memcpy(&priv->xfer_buf[3], tx_data, stride);
+		memcpy(&priv->xfer_buf[3], tx_offs, stride);
 
-		ret = priv->iops->write_data(priv->intf, priv->xfer_buf,
-					     stride + 3);
+		ret = ftdi_spi_push_buf(priv, priv->xfer_buf, stride + 3);
 		if (ret < 0) {
-			dev_dbg(&master->dev, "%s: tx failed %d\n",
+			dev_dbg(&priv->pdev->dev, "%s: tx failed %d\n",
 				__func__, ret);
 			goto err;
 		}
-		dev_dbg(&master->dev, "%s: %zu byte(s) done\n",
+		if (spi_ftdi_mpsse_debug) {
+		dev_dbg(&priv->pdev->dev, "%s: %zu byte(s) done\n",
 			__func__, stride);
+		}
 		remaining -= stride;
+		tx_offs += stride;
 	} while (remaining);
 
 	ret = 0;
@@ -222,23 +247,20 @@ err:
 	return ret;
 }
 
-static int ftdi_spi_rx(struct ftdi_spi *priv, u8 *rx_data, size_t len)
+static int ftdi_spi_rx(struct ftdi_spi *priv, struct spi_transfer *xfer)
 {
 	const struct ft232h_intf_ops *ops = priv->iops;
-	struct spi_master *master = priv->master;
+	struct device *dev = &priv->pdev->dev;
 	size_t remaining, stride;
 	int ret, tout = 10;
-	void *rxbuf;
-
-	dev_dbg(&master->dev, "%s: CMD 0x%02x, len %zu\n",
-		__func__, priv->rx_cmd, len);
-
-	if (!len)
-		return 0;
-
+	void *rx_offs;
+	if (spi_ftdi_mpsse_debug) {
+	dev_dbg(dev, "%s: CMD 0x%02x, len %u\n",
+		__func__, priv->rx_cmd, xfer->len);
+	}
 	priv->xfer_buf[0] = priv->rx_cmd;
-	priv->xfer_buf[1] = len - 1;
-	priv->xfer_buf[2] = (len - 1) >> 8;
+	priv->xfer_buf[1] = xfer->len - 1;
+	priv->xfer_buf[2] = (xfer->len - 1) >> 8;
 
 	ops->lock(priv->intf);
 
@@ -246,8 +268,8 @@ static int ftdi_spi_rx(struct ftdi_spi *priv, u8 *rx_data, size_t len)
 	if (ret < 0)
 		goto err;
 
-	remaining = len;
-	rxbuf = rx_data;
+	remaining = xfer->len;
+	rx_offs = xfer->rx_buf;
 
 	do {
 		stride = min_t(size_t, remaining, SZ_512);
@@ -257,21 +279,21 @@ static int ftdi_spi_rx(struct ftdi_spi *priv, u8 *rx_data, size_t len)
 			goto err;
 
 		if (!ret) {
-			dev_dbg(&master->dev,
-				"Waiting for data (read : %02X), tout %d\n",
-				 ret, tout);
+			dev_dbg(dev, "Waiting for data (read: %02X), tout %d\n",
+				ret, tout);
 			if (--tout)
 				continue;
 
-			dev_dbg(&master->dev, "read timeout...\n");
+			dev_dbg(dev, "read timeout...\n");
 			ret = -ETIMEDOUT;
 			goto err;
 		}
 
-		memcpy(rxbuf, priv->xfer_buf, ret);
-
-		dev_dbg(&master->dev, "%s: %d byte(s)\n", __func__, ret);
-		rxbuf += ret;
+		memcpy(rx_offs, priv->xfer_buf, ret);
+		if (spi_ftdi_mpsse_debug) {
+		dev_dbg(dev, "%s: %d byte(s)\n", __func__, ret);
+		}
+		rx_offs += ret;
 		remaining -= ret;
 	} while (remaining);
 
@@ -281,27 +303,25 @@ err:
 	return ret;
 }
 
-static int ftdi_spi_transfer_one(struct spi_master *master,
-				 struct spi_message *msg)
+static int ftdi_spi_transfer_one(struct spi_controller *ctlr,
+				 struct spi_device *spi,
+				 struct spi_transfer *xfer)
 {
-	struct ftdi_spi *priv = spi_controller_get_devdata(master);
-	struct spi_device *spi = msg->spi;
-	struct spi_transfer *t;
-	bool keep_cs = false;
+	struct ftdi_spi *priv = spi_controller_get_devdata(ctlr);
+	struct device *dev = &priv->pdev->dev;
 	int ret = 0;
 
-	if (!priv)
-		return -ENODEV;
-
-	msg->actual_length = 0;
-	msg->state = NULL;
-	msg->status = 0;
+	if (!xfer->len)
+		return 0;
 
 	if (priv->last_mode != spi->mode) {
 		u8 spi_mode = spi->mode & (SPI_CPOL | SPI_CPHA);
 		u8 pins = 0;
 
-		dev_dbg(&master->dev, "%s: MODE %d\n", __func__, spi->mode);
+		if (spi_ftdi_mpsse_debug) {
+		dev_dbg(dev, "%s: MODE 0x%x\n", __func__, spi->mode);
+		}
+
 		if (spi->mode & SPI_LSB_FIRST) {
 			switch (spi_mode) {
 			case SPI_MODE_0:
@@ -335,78 +355,34 @@ static int ftdi_spi_transfer_one(struct spi_master *master,
 		switch (spi_mode) {
 		case SPI_MODE_2:
 		case SPI_MODE_3:
-			pins |= SK;
+			pins |= MPSSE_SK;
 			break;
 		}
 
-		ret = priv->iops->cfg_bus_pins(priv->intf, SK | DO, pins);
+		ret = priv->iops->cfg_bus_pins(priv->intf,
+					       MPSSE_SK | MPSSE_DO, pins);
 		if (ret < 0) {
-			dev_err(&master->dev, "IO cfg failed: %d\n", ret);
+			dev_err(dev, "IO cfg failed: %d\n", ret);
 			return ret;
 		}
 		priv->last_mode = spi->mode;
 	}
-
-	dev_dbg(&master->dev, "%s: mode 0x%x, CMD RX/TX 0x%x/0x%x\n",
+	if (spi_ftdi_mpsse_debug) {
+	dev_dbg(dev, "%s: mode 0x%x, CMD RX/TX 0x%x/0x%x\n",
 		__func__, spi->mode, priv->rx_cmd, priv->tx_cmd);
-
-	ftdi_spi_chipselect(priv, spi, spi->mode & SPI_CS_HIGH);
-
-	ret = -EINVAL;
-
-	list_for_each_entry(t, &msg->transfers, transfer_list) {
-		dev_dbg(&master->dev, "%s: cs_change %d, cs %d, len %d\n",
-			__func__, t->cs_change, spi->chip_select, t->len);
-		dev_dbg(&master->dev, "%s: txb 0x%p, rxb 0x%p, bpw %d\n",
-			__func__, t->tx_buf, t->rx_buf, t->bits_per_word);
-/*
-		if (t->tx_buf && t->rx_buf)
-			ret = ftdi_spi_tx_rx(priv, spi, t);
-		else if (t->tx_buf)
-			ret = ftdi_spi_tx(priv, t->tx_buf, t->len);
-		else if (t->rx_buf)
-			ret = ftdi_spi_rx(priv, t->rx_buf, t->len);
-*/
-        if (t->tx_buf)
-			ret = ftdi_spi_tx(priv, t->tx_buf, t->len);
-		else if (t->rx_buf)
-			ret = ftdi_spi_rx(priv, t->rx_buf, t->len);
-
-		dev_dbg(&master->dev, "%s: xfer ret %d\n", __func__, ret);
-		if (ret)
-			break;
-
-		msg->actual_length += t->len;
-
-		if (t->delay.value) {
-			u16 us = t->delay.value;
-
-			if (us <= 10)
-				udelay(us);
-			else
-				usleep_range(us, us + DIV_ROUND_UP(us, 10));
-		}
-
-		if (!t->cs_change)
-			continue;
-
-		/* Last transfer with cs_change set, stop keeping CS */
-		if (list_is_last(&t->transfer_list, &msg->transfers)) {
-			keep_cs = true;
-			break;
-		}
-		ftdi_spi_chipselect(priv, spi, !(spi->mode & SPI_CS_HIGH));
-		usleep_range(10, 15);
-		ftdi_spi_chipselect(priv, spi, spi->mode & SPI_CS_HIGH);
 	}
 
-	dev_dbg(&master->dev, "%s: status %d\n", __func__, ret);
-	msg->status = ret;
-	spi_finalize_current_message(master);
+	if (xfer->tx_buf && xfer->rx_buf)
+		ret = ftdi_spi_tx_rx(priv, spi, xfer);
+	else if (xfer->tx_buf)
+		ret = ftdi_spi_tx(priv, xfer);
+	else if (xfer->rx_buf)
+		ret = ftdi_spi_rx(priv, xfer);
 
-	if (!keep_cs)
-		ftdi_spi_chipselect(priv, spi, !(spi->mode & SPI_CS_HIGH));
+	if (spi_ftdi_mpsse_debug)
+	dev_dbg(dev, "%s: xfer ret %d\n", __func__, ret);
 
+	spi_finalize_current_transfer(ctlr);
 	return ret;
 }
 
@@ -446,7 +422,7 @@ static int ftdi_mpsse_init(struct ftdi_spi *priv)
 
 	priv->iops->unlock(priv->intf);
 
-	ret = priv->iops->cfg_bus_pins(priv->intf, SK | DO, 0);
+	ret = priv->iops->cfg_bus_pins(priv->intf, MPSSE_SK | MPSSE_DO, 0);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Can't init SPI bus pins: %d\n", ret);
 		return ret;
@@ -455,23 +431,33 @@ static int ftdi_mpsse_init(struct ftdi_spi *priv)
 	return 0;
 }
 
-static int ftdi_spi_init_io(struct spi_master *master, int cs)
+static int ftdi_spi_init_io(struct spi_controller *master, unsigned int dev_idx)
 {
 	struct ftdi_spi *priv = spi_controller_get_devdata(master);
-	const struct mpsse_spi_platform_data *pd;
 	struct platform_device *pdev = priv->pdev;
+	const struct mpsse_spi_platform_data *pd;
+	const struct mpsse_spi_dev_data *data;
 	struct gpiod_lookup_table *lookup;
-	size_t lookup_size;
+	size_t lookup_size, size;
 	char *label;
-	int i, size;
+	unsigned int i;
+	u16 cs;
 
 	pd = pdev->dev.platform_data;
-	size = pd->io_data_len + 1;
+
+	data = pd->spi_info[dev_idx].platform_data;
+	if (!data || data->magic != FTDI_MPSSE_IO_DESC_MAGIC)
+		return 0;
+
+	size = data->desc_len + 1;
 
 	lookup_size = sizeof(*lookup) + size * sizeof(struct gpiod_lookup);
 	lookup = devm_kzalloc(&pdev->dev, lookup_size, GFP_KERNEL);
 	if (!lookup)
 		return -ENOMEM;
+
+	cs = pd->spi_info[dev_idx].chip_select;
+
 
 	lookup->dev_id = devm_kasprintf(&pdev->dev, GFP_KERNEL, "spi%d.%d",
 					master->bus_num, cs);
@@ -489,15 +475,15 @@ static int ftdi_spi_init_io(struct spi_master *master, int cs)
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < pd->io_data_len; i++) {
+	for (i = 0; i < data->desc_len; i++) {
 		dev_dbg(&pdev->dev, "con_id: '%s' idx: %d, flags: 0x%x\n",
-			pd->io_data[i].con_id, pd->io_data[i].idx,
-			pd->io_data[i].flags);
+			data->desc[i].con_id, data->desc[i].idx,
+			data->desc[i].flags);
 		lookup->table[i].key = label;
-		lookup->table[i].chip_hwnum = pd->io_data[i].idx;
+		lookup->table[i].chip_hwnum = data->desc[i].idx;
 		lookup->table[i].idx = 0;
-		lookup->table[i].con_id = pd->io_data[i].con_id;
-		lookup->table[i].flags = pd->io_data[i].flags;
+		lookup->table[i].con_id = data->desc[i].con_id;
+		lookup->table[i].flags = data->desc[i].flags;
 	}
 
 	priv->lookup[cs] = lookup;
@@ -509,11 +495,12 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 {
 	const struct mpsse_spi_platform_data *pd;
 	struct device *dev = &pdev->dev;
-	struct spi_master *master;
+	struct spi_controller *master;
 	struct ftdi_spi *priv;
 	struct gpio_desc *desc;
-	int num_cs, max_cs = 0;
-	int i, ret;
+	u16 num_cs, max_cs = 0;
+	unsigned int i;
+	int ret;
 
 	pd = dev->platform_data;
 	if (!pd) {
@@ -528,6 +515,9 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	    !pd->ops->disable_bitbang || !pd->ops->cfg_bus_pins)
 		return -EINVAL;
 
+	if (pd->spi_info_len > FTDI_MPSSE_GPIOS)
+		return -EINVAL;
+
 	/* Find max. slave chipselect number */
 	num_cs = pd->spi_info_len;
 	for (i = 0; i < num_cs; i++) {
@@ -535,11 +525,11 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 			max_cs = pd->spi_info[i].chip_select;
 	}
 
-	if (max_cs > 12) {
-		dev_err(dev, "Invalid max CS in platform data: %d\n", max_cs);
+	if (max_cs > FTDI_MPSSE_GPIOS - 1) {
+		dev_err(dev, "Invalid max CS in platform data: %u\n", max_cs);
 		return -EINVAL;
 	}
-	dev_dbg(dev, "CS count %d, max CS %d\n", num_cs, max_cs);
+	dev_dbg(dev, "CS count %u, max CS %u\n", num_cs, max_cs);
 	max_cs += 1; /* including CS0 */
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*priv));
@@ -561,7 +551,8 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	master->min_speed_hz = 450;
 	master->max_speed_hz = 30000000;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
-	master->transfer_one_message = ftdi_spi_transfer_one;
+	master->set_cs = ftdi_spi_set_cs;
+	master->transfer_one = ftdi_spi_transfer_one;
 	master->auto_runtime_pm = false;
 
 	priv->cs_gpios = devm_kcalloc(&master->dev, max_cs, sizeof(desc),
@@ -572,14 +563,14 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	}
 
 	for (i = 0; i < num_cs; i++) {
-		int idx = pd->spi_info[i].chip_select;
+		unsigned int idx = pd->spi_info[i].chip_select;
 
-		dev_dbg(&pdev->dev, "CS num: %d\n", idx);
+		dev_dbg(&pdev->dev, "CS num: %u\n", idx);
 		desc = devm_gpiod_get_index(&priv->pdev->dev, "spi-cs",
 					    i, GPIOD_OUT_LOW);
 		if (IS_ERR(desc)) {
 			ret = PTR_ERR(desc);
-			dev_err(&pdev->dev, "CS %d gpiod err: %d\n", i, ret);
+			dev_err(&pdev->dev, "CS %u gpiod err: %d\n", i, ret);
 			continue;
 		}
 		priv->cs_gpios[idx] = desc;
@@ -608,11 +599,12 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 
 	for (i = 0; i < pd->spi_info_len; i++) {
 		struct spi_device *sdev;
-		int cs;
+		u16 cs;
 
-		dev_dbg(&pdev->dev, "slave: '%s', CS: %d\n",
+		dev_dbg(&pdev->dev, "slave: '%s', CS: %u\n",
 			pd->spi_info[i].modalias, pd->spi_info[i].chip_select);
-		ret = ftdi_spi_init_io(master, pd->spi_info[i].chip_select);
+
+		ret = ftdi_spi_init_io(master, i);
 		if (ret < 0) {
 			dev_warn(&pdev->dev, "Can't add slave IO: %d\n", ret);
 			continue;
@@ -620,7 +612,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 		sdev = spi_new_device(master, &pd->spi_info[i]);
 		if (!sdev) {
 			cs = pd->spi_info[i].chip_select;
-			dev_warn(&pdev->dev, "Can't add slave '%s', CS %d\n",
+			dev_warn(&pdev->dev, "Can't add slave '%s', CS %u\n",
 				 pd->spi_info[i].modalias, cs);
 			if (priv->lookup[cs]) {
 				gpiod_remove_lookup_table(priv->lookup[cs]);
@@ -640,9 +632,9 @@ static int ftdi_spi_slave_release(struct device *dev, void *data)
 {
 	struct spi_device *spi = to_spi_device(dev);
 	struct ftdi_spi *priv = data;
-	int cs = spi->chip_select;
+	u16 cs = spi->chip_select;
 
-	dev_dbg(dev, "%s: remove CS %d\n", __func__, cs);
+	dev_dbg(dev, "%s: remove CS %u\n", __func__, cs);
 	spi_unregister_device(to_spi_device(dev));
 
 	if (priv->lookup[cs])
@@ -652,7 +644,7 @@ static int ftdi_spi_slave_release(struct device *dev, void *data)
 
 static int ftdi_spi_remove(struct platform_device *pdev)
 {
-	struct spi_master *master;
+	struct spi_controller *master;
 	struct ftdi_spi *priv;
 
 	master = platform_get_drvdata(pdev);
@@ -675,3 +667,5 @@ MODULE_ALIAS("platform:ftdi-mpsse-spi");
 MODULE_AUTHOR("Anatolij Gustschin <agust@denx.de");
 MODULE_DESCRIPTION("FTDI MPSSE SPI master driver");
 MODULE_LICENSE("GPL v2");
+
+
