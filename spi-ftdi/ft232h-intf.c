@@ -1331,7 +1331,7 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
     .max_speed_hz	= 32000000,
     .bus_num	= 0,
     .chip_select	= 0,
-*/
+
     .platform_data	= ftdi_spi_dev_data,
 // 	.properties	= ili9341_properties,    //changed from properties to swnode i dunno aroun kernel 5.15ish
 //	.swnode  =  &ili9341_node,
