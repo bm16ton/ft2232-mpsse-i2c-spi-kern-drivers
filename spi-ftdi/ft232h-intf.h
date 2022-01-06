@@ -9,9 +9,13 @@
 #ifndef __LINUX_FT232H_INTF_H
 #define __LINUX_FT232H_INTF_H
 
+#define FTDI_CLK_6MHZ	6000000
+#define FTDI_CLK_30MHZ	30000000
+
 /* Used FTDI USB Requests */
 #define FTDI_SIO_RESET_REQUEST		0x00
 #define FTDI_SIO_SET_BAUDRATE_REQUEST	0x03
+#define FTDI_SIO_SET_LATENCY_TIMER_REQUEST	0x09
 #define FTDI_SIO_SET_BITMODE_REQUEST	0x0B
 #define FTDI_SIO_READ_PINS_REQUEST	0x0C
 #define FTDI_SIO_READ_EEPROM_REQUEST	0x90
@@ -34,6 +38,7 @@
 #define LOOPBACK_ON		0x84
 #define LOOPBACK_OFF		0x85
 #define TCK_DIVISOR		0x86
+#define SEND_IMMEDIATE		0x87
 #define DIS_DIV_5		0x8A
 #define EN_DIV_5		0x8B
 #define EN_3_PHASE		0x8C
@@ -49,6 +54,8 @@
 #define FTDI_USB_WRITE_TIMEOUT	5000
 
 /* Total number of MPSSE GPIOs: 4x GPIOL, 8x GPIOH, 1x CS on ADBUS3 */
+//#define FTDI_MPSSE_GPIOS	13
+
 #define FTDI_MPSSE_GPIOS	5
 
 /* MPSSE bitbang modes (copied from libftdi) */
@@ -120,6 +127,8 @@ struct ft232h_intf_ops {
 	int (*init_pins)(struct usb_interface *intf, bool low, u8 bits, u8 dir);
 	int (*cfg_bus_pins)(struct usb_interface *intf, u8 dir_bits,
 			    u8 value_bits);
+	int (*set_clock)(struct usb_interface *intf, int clock_freq_hz);
+	int (*set_latency)(struct usb_interface *intf, int latency_msec);
 };
 
 /*

@@ -1,1 +1,0 @@
-cmd_/home/maddocks/src/ft2232-i2c/github/spi-ftdi/spi-ftdi-mpsse.ko := ld -r  -EL  -maarch64elf  --build-id=sha1  -T scripts/module.lds -o /home/maddocks/src/ft2232-i2c/github/spi-ftdi/spi-ftdi-mpsse.ko /home/maddocks/src/ft2232-i2c/github/spi-ftdi/spi-ftdi-mpsse.o /home/maddocks/src/ft2232-i2c/github/spi-ftdi/spi-ftdi-mpsse.mod.o;  true

@@ -613,6 +613,24 @@ static int ftdi_reset(struct ftdi_usb *ftdi)
 	return ftdi_i2c_idle(ftdi);
 }
 
+static int ftx232h_jtag_probe(struct usb_interface *interface)
+{
+//	int ifnum = intf->cur_altsetting->desc.bInterfaceNumber;
+	int inf;
+	inf = interface->cur_altsetting->desc.bInterfaceNumber;
+
+	if (inf > 1) {
+		dev_info(&interface->dev, "Ignoring Interface\n");
+		return -ENODEV;
+		}
+	if (inf < 1) {
+		dev_info(&interface->dev, "Ignoring Interface\n");
+		return -ENODEV;
+		}
+
+	return 0;
+}
+
 static int ftdi_usb_probe(struct usb_interface *interface,
 			  const struct usb_device_id *id)
 {
@@ -629,14 +647,21 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	ftdi->udev = usb_get_dev(dev);
 	ftdi->interface = usb_get_intf(interface);
 	inf = ftdi->interface->cur_altsetting->desc.bInterfaceNumber;
-	if (inf > 1) {
-		dev_info(&interface->dev, "Ignoring Interface\n");
-		return -ENODEV;
-		}
-	if (inf < 1) {
-		dev_info(&interface->dev, "Ignoring Interface\n");
-		return -ENODEV;
-		}
+
+
+     if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft4232H-16ton")) {
+	 	ret = ftx232h_jtag_probe(interface);
+		if (ret < 0)
+		    return -ENODEV;
+	}
+
+     if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft2232H-16ton")) {
+		ret = ftx232h_jtag_probe(interface);
+		if (ret < 0)
+			return -ENODEV;
+	}
+
+
 	ftdi->io_timeout = FTDI_IO_TIMEOUT;
 	if (i2c_ftdi_100k) {
 	ftdi->freq = 100000;

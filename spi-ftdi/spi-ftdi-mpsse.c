@@ -10,17 +10,24 @@
 #include <linux/bits.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
+
 #include <linux/module.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h>
 #include <linux/platform_device.h>
 #include <linux/printk.h>
+#include <linux/idr.h>
+#include <linux/mutex.h>
+#include <linux/device.h>
+
 #include <linux/slab.h>
 #include <linux/spi/spi.h>
 #include <linux/types.h>
 #include <linux/sizes.h>
 #include <linux/usb.h>
 #include <linux/usb/ft232h-intf.h>
+
 
 int spi_ftdi_mpsse_debug;
 module_param_named(debug, spi_ftdi_mpsse_debug, int, 0444);
@@ -40,12 +47,16 @@ struct ftdi_spi {
 	const struct ft232h_intf_ops *iops;
 	struct gpiod_lookup_table *lookup[FTDI_MPSSE_GPIOS];
 	struct gpio_desc **cs_gpios;
+	struct gpio_desc **dc_gpios;
+	struct gpio_desc **reset_gpios;
+	struct gpio_desc **interrupts_gpios;
 
 	u8 txrx_cmd;
 	u8 rx_cmd;
 	u8 tx_cmd;
 	u8 xfer_buf[SZ_64K];
 	u16 last_mode;
+	u32 last_speed_hz;
 };
 
 static void ftdi_spi_set_cs(struct spi_device *spi, bool enable)
@@ -112,6 +123,7 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 	void *rx_offs;
 	const void *tx_offs;
 	size_t remaining, stride;
+        size_t rx_remaining;
 	size_t rx_stride;
 	int ret, tout = 10;
 	const u8 *tx_data = t->tx_buf;
@@ -136,10 +148,11 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 		priv->xfer_buf[1] = stride - 1;
 		priv->xfer_buf[2] = (stride - 1) >> 8;
 		memcpy(&priv->xfer_buf[3], tx_offs, stride);
+		priv->xfer_buf[3 + stride] = SEND_IMMEDIATE;
 		print_hex_dump_debug("WR: ", DUMP_PREFIX_OFFSET, 16, 1,
 				     priv->xfer_buf, stride + 3, 1);
 
-		ret = ops->write_data(priv->intf, priv->xfer_buf, stride + 3);
+		ret = ops->write_data(priv->intf, priv->xfer_buf, stride + 4);
 		if (ret < 0) {
 			dev_err(dev, "%s: xfer failed %d\n", __func__, ret);
 			goto fail;
@@ -150,27 +163,27 @@ static int ftdi_spi_tx_rx(struct ftdi_spi *priv, struct spi_device *spi,
 		}
 		rx_stride = min_t(size_t, stride, SZ_512);
 
-		ret = ops->read_data(priv->intf, priv->xfer_buf, rx_stride);
-		while (ret == 0) {
-			/* If no data yet, wait and repeat */
-			usleep_range(5000, 5100);
-			ret = ops->read_data(priv->intf, priv->xfer_buf,
-					     rx_stride);
-			dev_dbg(dev, "Waiting data ready, read: %d\n", ret);
-			if (!--tout) {
+		tout = 10;
+		rx_remaining = stride;
+		do {
+			rx_stride = min_t(size_t, rx_remaining, SZ_512);
+			ret = ops->read_data(priv->intf, priv->xfer_buf, rx_stride);
+			if (ret < 0)
+				goto fail;
+			if (!ret) {
+				if (--tout) {
+					continue;
+				}
 				dev_err(dev, "Read timeout\n");
 				ret = -ETIMEDOUT;
 				goto fail;
 			}
-		}
-
-		if (ret < 0)
-			goto fail;
-
-		print_hex_dump_debug("RD: ", DUMP_PREFIX_OFFSET, 16, 1,
-				     priv->xfer_buf, rx_stride, 1);
-		memcpy(rx_offs, priv->xfer_buf, ret);
-		rx_offs += ret;
+			print_hex_dump_debug("RD: ", DUMP_PREFIX_OFFSET, 16, 1,
+				     priv->xfer_buf, ret, 1);
+			memcpy(rx_offs, priv->xfer_buf, ret);
+			rx_offs += ret;
+			rx_remaining -= ret;
+		} while (rx_remaining);
 
 		remaining -= stride;
 		tx_offs += stride;
@@ -261,10 +274,10 @@ static int ftdi_spi_rx(struct ftdi_spi *priv, struct spi_transfer *xfer)
 	priv->xfer_buf[0] = priv->rx_cmd;
 	priv->xfer_buf[1] = xfer->len - 1;
 	priv->xfer_buf[2] = (xfer->len - 1) >> 8;
-
+	priv->xfer_buf[3] = SEND_IMMEDIATE;
 	ops->lock(priv->intf);
 
-	ret = ops->write_data(priv->intf, priv->xfer_buf, 3);
+	ret = ops->write_data(priv->intf, priv->xfer_buf, 4);
 	if (ret < 0)
 		goto err;
 
@@ -313,6 +326,16 @@ static int ftdi_spi_transfer_one(struct spi_controller *ctlr,
 
 	if (!xfer->len)
 		return 0;
+
+	if (priv->last_speed_hz != xfer->speed_hz) {
+		dev_dbg(dev, "%s: new speed %u\n", __func__, (int)xfer->speed_hz);
+		ret = priv->iops->set_clock(priv->intf, xfer->speed_hz);
+		if (ret < 0) {
+			dev_err(dev, "Set clock(%u) failed: %d\n", xfer->speed_hz, ret);
+			return ret;
+		}
+		priv->last_speed_hz = xfer->speed_hz;
+	}
 
 	if (priv->last_mode != spi->mode) {
 		u8 spi_mode = spi->mode & (SPI_CPOL | SPI_CPHA);
@@ -498,7 +521,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	struct spi_controller *master;
 	struct ftdi_spi *priv;
 	struct gpio_desc *desc;
-	u16 num_cs, max_cs = 0;
+	u16 dc, reset, interrupts, num_cs, max_cs = 0;
 	unsigned int i;
 	int ret;
 
@@ -512,8 +535,9 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	    !pd->ops->read_data || !pd->ops->write_data ||
 	    !pd->ops->lock || !pd->ops->unlock ||
 	    !pd->ops->set_bitmode || !pd->ops->set_baudrate ||
-	    !pd->ops->disable_bitbang || !pd->ops->cfg_bus_pins)
-		return -EINVAL;
+	    !pd->ops->disable_bitbang || !pd->ops->cfg_bus_pins ||
+	    !pd->ops->set_clock || !pd->ops->set_latency)
+	    	return -EINVAL;
 
 	if (pd->spi_info_len > FTDI_MPSSE_GPIOS)
 		return -EINVAL;
@@ -549,7 +573,9 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 			    SPI_CS_HIGH | SPI_LSB_FIRST;
 	master->num_chipselect = max_cs;
 	master->min_speed_hz = 450;
+//	master->min_speed_hz = 1000000;
 	master->max_speed_hz = 30000000;
+//	master->max_speed_hz = 25000000;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
 	master->set_cs = ftdi_spi_set_cs;
 	master->transfer_one = ftdi_spi_transfer_one;
@@ -561,6 +587,16 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 		spi_controller_put(master);
 		return -ENOMEM;
 	}
+
+	priv->dc_gpios = devm_kcalloc(&master->dev, dc, sizeof(desc),
+				      GFP_KERNEL);
+
+	priv->reset_gpios = devm_kcalloc(&master->dev, reset, sizeof(desc),
+				      GFP_KERNEL);
+
+	priv->interrupts_gpios = devm_kcalloc(&master->dev, interrupts, sizeof(desc),
+				      GFP_KERNEL);
+
 
 	for (i = 0; i < num_cs; i++) {
 		unsigned int idx = pd->spi_info[i].chip_select;
@@ -596,6 +632,12 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "MPSSE init failed\n");
 		goto err;
 	}
+
+	ret = priv->iops->set_latency(priv->intf, 1);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Set latency failed\n");
+		goto err;
+        }
 
 	for (i = 0; i < pd->spi_info_len; i++) {
 		struct spi_device *sdev;
