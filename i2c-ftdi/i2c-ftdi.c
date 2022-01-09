@@ -651,16 +651,19 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 
      if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft4232H-16ton")) {
 	 	ret = ftx232h_jtag_probe(interface);
-		if (ret < 0)
-		    return -ENODEV;
-	}
+		if (ret < 0) {
+			ftdi_usb_delete(ftdi);
+		    	return -ENODEV;
+     	}
+	 }
 
      if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft2232H-16ton")) {
 		ret = ftx232h_jtag_probe(interface);
-		if (ret < 0)
-			return -ENODEV;
+		if (ret < 0) {
+			ftdi_usb_delete(ftdi);
+				return -ENODEV;
+	 	}
 	}
-
 
 	ftdi->io_timeout = FTDI_IO_TIMEOUT;
 	if (i2c_ftdi_100k) {
@@ -673,7 +676,7 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	ftdi->buffer_size = FTDI_IO_BUFFER_SIZE;
 	if (!ftdi->buffer) {
 		dev_err(&interface->dev,
-			"Failed to initialize the FTDI-based device: %d\n",
+			"Failed to initialize the FTDI-based I2C device: %d\n",
 			-ENOMEM);
 		ftdi_usb_delete(ftdi);
 		return -ENOMEM;
@@ -682,7 +685,7 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	ret = ftdi_reset(ftdi);
 	if (ret < 0) {
 		dev_err(&interface->dev,
-			"Failed to reset FTDI-based device: %d\n", ret);
+			"Failed to reset FTDI-based I2C device: %d\n", ret);
 		ftdi_usb_delete(ftdi);
 		return ret;
 	}
@@ -697,7 +700,7 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	i2c_add_adapter(&ftdi->adapter);
 
 	usb_set_intfdata(interface, ftdi);
-	dev_info(&interface->dev, "Initialized FTDI-based device\n");
+	dev_info(&interface->dev, "Initialized FTDI-based I2C device\n");
 	return 0;
 }
 
@@ -708,11 +711,11 @@ static void ftdi_usb_disconnect(struct usb_interface *interface)
 	i2c_del_adapter(&ftdi->adapter);
 	usb_set_intfdata(interface, NULL);
 	ftdi_usb_delete(ftdi);
-	dev_info(&interface->dev, "FTDI-based device has been disconnected\n");
+	dev_info(&interface->dev, "FTDI-based I2C device has been disconnected\n");
 }
 
 static struct usb_driver ftdi_usb_driver = {
-	.name = "ftdi_usb",
+	.name = "i2c-ftdi",
 	.probe = ftdi_usb_probe,
 	.disconnect = ftdi_usb_disconnect,
 	.id_table = ftdi_id_table,
