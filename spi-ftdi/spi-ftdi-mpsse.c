@@ -28,6 +28,9 @@
 #include <linux/usb.h>
 #include <linux/usb/ft232h-intf.h>
 
+#include <linux/of.h>
+#include <linux/of_gpio.h>
+#include <linux/stringify.h>
 
 int spi_ftdi_mpsse_debug;
 module_param_named(debug, spi_ftdi_mpsse_debug, int, 0444);
@@ -40,12 +43,14 @@ enum gpiol {
 	MPSSE_CS	= BIT(3),
 };
 
+// FTDI_MPSSE_GPIOS = ft232h_intf_get_numgpio(intf);
+
 struct ftdi_spi {
 	struct platform_device *pdev;
 	struct usb_interface *intf;
 	struct spi_controller *master;
 	const struct ft232h_intf_ops *iops;
-	struct gpiod_lookup_table *lookup[FTDI_MPSSE_GPIOS];
+	struct gpiod_lookup_table *lookup[FTDI_MPSSE_GPIOS5];
 	struct gpio_desc **cs_gpios;
 	struct gpio_desc **dc_gpios;
 	struct gpio_desc **reset_gpios;
@@ -57,6 +62,8 @@ struct ftdi_spi {
 	u8 xfer_buf[SZ_64K];
 	u16 last_mode;
 	u32 last_speed_hz;
+	int ftmodel;
+	int gpionum;
 };
 
 static void ftdi_spi_set_cs(struct spi_device *spi, bool enable)
@@ -524,6 +531,15 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	u16 dc, reset, interrupts, num_cs, max_cs = 0;
 	unsigned int i;
 	int ret;
+//	int ret2;
+	int model;
+	int numgpio;
+
+	int ftmod2;
+	int ftmod4;
+
+	ftmod2 = 2232;
+	ftmod4 = 4232;
 
 	pd = dev->platform_data;
 	if (!pd) {
@@ -539,7 +555,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	    !pd->ops->set_clock || !pd->ops->set_latency)
 	    	return -EINVAL;
 
-	if (pd->spi_info_len > FTDI_MPSSE_GPIOS)
+	if (pd->spi_info_len > FTDI_MPSSE_GPIOS13)
 		return -EINVAL;
 
 	/* Find max. slave chipselect number */
@@ -549,7 +565,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 			max_cs = pd->spi_info[i].chip_select;
 	}
 
-	if (max_cs > FTDI_MPSSE_GPIOS - 1) {
+	if (max_cs > FTDI_MPSSE_GPIOS5 - 1) {
 		dev_err(dev, "Invalid max CS in platform data: %u\n", max_cs);
 		return -EINVAL;
 	}
@@ -567,6 +583,14 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	priv->pdev = pdev;
 	priv->intf = to_usb_interface(dev->parent);
 	priv->iops = pd->ops;
+
+	model = ft232h_intf_get_model(priv->intf);
+	priv->ftmodel = model;
+	dev_info(dev, "model num %d\n", priv->ftmodel);
+
+    numgpio = ft232h_intf_get_numgpio(priv->intf);
+	priv->gpionum = numgpio;
+	dev_info(dev, "gpio num %d\n", priv->gpionum);
 
 	master->bus_num = -1;
 	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP |
@@ -698,8 +722,23 @@ static int ftdi_spi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id ftdi_of_match[] = {
+	{ .compatible = "ftdi,ftdi-mpsse-spi", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, ftdi_of_match);
+
+static const struct spi_device_id ftdi_spi_ids[] = {
+	{ .name = "ftdi-mpsse-spi", (unsigned long)ftdi_spi_probe },
+	{},
+};
+MODULE_DEVICE_TABLE(spi, ftdi_spi_ids);
+
 static struct platform_driver ftdi_spi_driver = {
-	.driver.name	= "ftdi-mpsse-spi",
+	.driver		= {
+				.name	= "ftdi-mpsse-spi",
+				.of_match_table = of_match_ptr(ftdi_of_match),
+	},
 	.probe		= ftdi_spi_probe,
 	.remove		= ftdi_spi_remove,
 };
