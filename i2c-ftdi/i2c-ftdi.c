@@ -549,12 +549,6 @@ static int ftdi_mpsse_i2c_setup(struct ftdi_usb *ftdi)
 	if (ret < 0)
 		return ret;
 
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_unknown(&cmd);
-	if (ret < 0)
-		return ret;
-    }
-
 	ret = ftdi_mpsse_set_drive0_pins(&cmd, 0x7);
 	if (ret < 0)
 		return ret;

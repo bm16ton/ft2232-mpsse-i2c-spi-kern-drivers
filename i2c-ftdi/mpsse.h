@@ -52,15 +52,6 @@ static inline int ftdi_mpsse_disable_loopback(struct ftdi_mpsse_cmd *cmd)
 	return ftdi_mpsse_command(cmd, 0x85);
 }
 
-static inline int ftdi_mpsse_unknown(
-	struct ftdi_mpsse_cmd *cmd)
-{
-
-	cmd->buffer[cmd->offset++] = 0x32;
-	cmd->buffer[cmd->offset++] = 0x60;
-	return 0;
-}
-
 // For I2C when nobody drives the pin it should take the value 1 and all devices
 // to set the pin to value 1 should just release it.
 static inline int ftdi_mpsse_set_drive0_pins(
