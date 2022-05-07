@@ -52,6 +52,15 @@ static inline int ftdi_mpsse_disable_loopback(struct ftdi_mpsse_cmd *cmd)
 	return ftdi_mpsse_command(cmd, 0x85);
 }
 
+static inline int ftdi_mpsse_unknown(
+	struct ftdi_mpsse_cmd *cmd)
+{
+
+	cmd->buffer[cmd->offset++] = 0x32;
+	cmd->buffer[cmd->offset++] = 0x60;
+	return 0;
+}
+
 // For I2C when nobody drives the pin it should take the value 1 and all devices
 // to set the pin to value 1 should just release it.
 static inline int ftdi_mpsse_set_drive0_pins(
@@ -84,6 +93,21 @@ static inline int ftdi_mpsse_set_freq(struct ftdi_mpsse_cmd *cmd, unsigned freq)
 	cmd->buffer[cmd->offset++] = 0x86;
 	cmd->buffer[cmd->offset++] = div & 0xff;
 	cmd->buffer[cmd->offset++] = (div >> 8) & 0xff;
+	return 0;
+}
+
+static inline int ftdi_mpsse_set_output_232h(
+	struct ftdi_mpsse_cmd *cmd, unsigned pinmask, unsigned pinvals)
+{
+	if (cmd->offset + 6 > cmd->size)
+		return -ENOMEM;
+
+	cmd->buffer[cmd->offset++] = 0x80;
+	cmd->buffer[cmd->offset++] = pinvals & 0xff;
+	cmd->buffer[cmd->offset++] = pinmask & 0x03;
+	cmd->buffer[cmd->offset++] = 0x82;
+	cmd->buffer[cmd->offset++] = (pinvals >> 8) & 0xff;
+	cmd->buffer[cmd->offset++] = (pinmask >> 8) & 0xff;
 	return 0;
 }
 

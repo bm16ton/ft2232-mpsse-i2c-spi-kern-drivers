@@ -1,6 +1,6 @@
 ifneq ($(KERNELRELEASE),)
 
-obj-m := ftdi.o
+obj-m := i2c-ftdi.o
 
 else
 
