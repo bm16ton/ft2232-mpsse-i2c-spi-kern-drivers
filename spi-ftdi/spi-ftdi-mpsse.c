@@ -724,27 +724,29 @@ static int ftdi_spi_remove(struct platform_device *pdev)
 
 static const struct of_device_id ftdi_of_match[] = {
 	{ .compatible = "ftdi,ftdi-mpsse-spi", },
+	{ .compatible = "ftdi,spi_ftdi_mpsse", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, ftdi_of_match);
 
 static const struct spi_device_id ftdi_spi_ids[] = {
 	{ .name = "ftdi-mpsse-spi", (unsigned long)ftdi_spi_probe },
+	{ .name = "spi-ftdi-mpsse", (unsigned long)ftdi_spi_probe },
 	{},
 };
 MODULE_DEVICE_TABLE(spi, ftdi_spi_ids);
 
-static struct platform_driver ftdi_spi_driver = {
+static struct platform_driver spi_ftdi_mpsse = {
 	.driver		= {
-				.name	= "ftdi-mpsse-spi",
+				.name	= "spi-ftdi-mpsse",
 				.of_match_table = of_match_ptr(ftdi_of_match),
 	},
 	.probe		= ftdi_spi_probe,
 	.remove		= ftdi_spi_remove,
 };
-module_platform_driver(ftdi_spi_driver);
+module_platform_driver(spi_ftdi_mpsse);
 
-MODULE_ALIAS("platform:ftdi-mpsse-spi");
+MODULE_ALIAS("platform:spi_ftdi_mpsse");
 MODULE_AUTHOR("Anatolij Gustschin <agust@denx.de");
 MODULE_DESCRIPTION("FTDI MPSSE SPI master driver");
 MODULE_LICENSE("GPL v2");

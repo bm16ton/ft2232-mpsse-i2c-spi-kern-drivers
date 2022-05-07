@@ -129,10 +129,6 @@
 #include <linux/sysfs.h>
 #include <linux/kobject.h>
 
-volatile int sysfs_value = 0;
-
-static struct kobject *eeprom;
-int			eepromdata[FTDI_MAX_EEPROM_SIZE];
 
 int usb_wait_msec = 0;
 module_param(usb_wait_msec, int, S_IRUSR | S_IWUSR);
@@ -157,9 +153,9 @@ struct ft232h_intf_priv {
 	struct platform_device		*spi_pdev;
 	struct gpiod_lookup_table	*lookup_fifo;
 	struct gpiod_lookup_table	*lookup_cs;
-	struct gpiod_lookup_table	*lookup_dc;
-	struct gpiod_lookup_table	*lookup_reset;
-	struct gpiod_lookup_table	*lookup_interrupts;
+//	struct gpiod_lookup_table	*lookup_dc;
+//	struct gpiod_lookup_table	*lookup_reset;
+//	struct gpiod_lookup_table	*lookup_interrupts;
    
 
 	struct gpio_chip	cbus_gpio;
@@ -182,28 +178,6 @@ struct ft232h_intf_priv {
 	u8			eeprom[FTDI_MAX_EEPROM_SIZE];
 };
 
-/*
-** This function will be called when we read the sysfs file
-*/
-static ssize_t sysfs_show(struct kobject *kobj, 
-                struct kobj_attribute *attr, char *buf)
-{
-//		eepromdata = 12;
-//        return sprintf(buf, "%d\n", eepromdata);
-		 return sprintf(buf, "todo eeprom dump\n");
-}
-/*
-** This function will be called when we write the sysfsfs file
-*/
-static ssize_t sysfs_store(struct kobject *kobj, 
-                struct kobj_attribute *attr, const char *buf, size_t count)
-{
- //       pr_info("Sysfs - Write!!!\n");
-        sscanf(buf, "%d", &eepromdata);
-        return count;
-}
-
-struct kobj_attribute sysfs_attribute = __ATTR(eeprom, 0665, sysfs_show, sysfs_store);
 
 /* Device info struct used for device specific init. */
 struct ft232h_intf_info {
@@ -218,6 +192,44 @@ struct ft232h_intf_info {
 
 static DEFINE_IDA(ftdi_devid_ida);
 
+
+
+static ssize_t eeprom_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct ft232h_intf_priv *priv = dev_get_drvdata(dev);
+//	int ret2;
+//        hexDump ("eeprom", priv->eeprom, sizeof (priv->eeprom), 32);
+
+//		return scnprintf(buf, 256, "%hhd\n", priv->eeprom);
+//    return sysfs_emit(buf, "0x%08x\n", priv->eeprom);
+    return sysfs_emit(buf, "%d\n", priv->eeprom);
+}
+
+
+static ssize_t eeprom_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *valbuf, size_t count)
+{
+        return count;
+}
+static DEVICE_ATTR_RW(eeprom);
+
+static int create_sysfs_attrs(struct usb_interface *intf)
+{
+	int retval = 0;
+
+			retval = device_create_file(&intf->dev,
+						    &dev_attr_eeprom);
+
+	return retval;
+}
+
+static void remove_sysfs_attrs(struct usb_interface *intf)
+{
+
+			device_remove_file(&intf->dev, &dev_attr_eeprom);
+}
 /* Use baudrate calculation borrowed from libftdi */
 static int ftdi_to_clkbits(int baudrate, unsigned int clk, int clk_div,
 			   unsigned long *encoded_divisor)
@@ -1231,7 +1243,7 @@ static const struct ft232h_intf_ops ft232h_intf_ops = {
 /*
  * FPGA config interface: FPP via FT245 FIFO
  */
-#define FPP_INTF_DEVNAME	"ftdi-fifo-fpp-mgr"
+#define FPP_INTF_DEVNAME	"spi-ftdi-mpsse"
 
 static struct dev_io_desc_data fpga_cfg_fpp_dev_io[2] = {
 	{ "nconfig", 0, GPIO_ACTIVE_LOW },
@@ -1351,7 +1363,7 @@ static int ft232h_intf_fpp_remove(struct usb_interface *intf)
 /*
  * FPGA config interface: PS-SPI via MPSSE
  */
-#define SPI_INTF_DEVNAME	"ftdi-mpsse-spi"
+#define SPI_INTF_DEVNAME	"spi-ftdi-mpsse"
 
 
 static struct dev_io_desc_data ftdi_spi_bus_dev_io[] = {
@@ -1366,6 +1378,13 @@ static const struct mpsse_spi_dev_data ftdi_spi_dev_data[] = {
 	.desc		= ftdi_spi_bus_dev_io,
 	.desc_len	= ARRAY_SIZE(ftdi_spi_bus_dev_io),
 	},
+};
+
+static const struct property_entry mcp2515_properties[] = {
+	PROPERTY_ENTRY_U32("clock-frequency", 8000000),
+//	PROPERTY_ENTRY_U32("xceiver", 1),
+//	PROPERTY_ENTRY_U32("gpio-controller", 3),
+	{}
 };
 
 static const struct property_entry ili9341_properties[] = {
@@ -1394,7 +1413,7 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
     .chip_select	= 0,
     .platform_data	= ftdi_spi_dev_data,
 // 	.properties	= ili9341_properties,    //changed from properties to swnode i dunno aroun kernel 5.15ish
-	.swnode  =  &ili9341_node,
+//	.swnode  =  &ili9341_node,
     },
    {
     .modalias	= "spi-petra",    //use instead of spidev for spidev no-longer enumerates
@@ -1504,13 +1523,13 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
 	}
 
 	priv->lookup_cs = lookup;
-	priv->lookup_dc = lookup;
-	priv->lookup_reset = lookup;
-	priv->lookup_interrupts = lookup;
+//	priv->lookup_dc = lookup;
+//	priv->lookup_reset = lookup;
+//	priv->lookup_interrupts = lookup;
 	gpiod_add_lookup_table(priv->lookup_cs);
-	gpiod_add_lookup_table(priv->lookup_dc);
-	gpiod_add_lookup_table(priv->lookup_reset);
-	gpiod_add_lookup_table(priv->lookup_interrupts);
+//	gpiod_add_lookup_table(priv->lookup_dc);
+//	gpiod_add_lookup_table(priv->lookup_reset);
+//	gpiod_add_lookup_table(priv->lookup_interrupts);
 
 	ret = platform_device_add(pdev);
 	if (ret < 0)
@@ -1598,7 +1617,14 @@ int ft232h_intf_get_model(struct usb_interface *intf)
 	priv->ftmodel = ftmod2;
 //	dev_info(dev, "model %d\n", priv->ftmodel);
 	} 	
-
+	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
+	priv->ftmodel = ftmod2;
+//	dev_info(dev, "model %d\n", priv->ftmodel);
+	}
+	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
+	priv->ftmodel = ftmod2;
+//	dev_info(dev, "model %d\n", priv->ftmodel);
+	} 	
 	ret = priv->ftmodel;
 	return ret;
 }
@@ -1629,7 +1655,14 @@ int ft232h_intf_get_numgpio(struct usb_interface *intf)
 	priv->numgpio = ftgpio2;
 //	dev_info(dev, "mpsse gpio num  %d\n", priv->numgpio);
 	} 	
-
+	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
+	priv->numgpio = ftgpio2;
+//	dev_info(dev, "mpsse gpio num  %d\n", priv->numgpio);
+	} 
+	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
+	priv->numgpio = ftgpio2;
+//	dev_info(dev, "mpsse gpio num  %d\n", priv->numgpio);
+	} 
 	ret = priv->numgpio;
 	return ret;
 }
@@ -1660,7 +1693,6 @@ static int ft232h_intf_probe(struct usb_interface *intf,
 	unsigned int i;
 	int ret = 0;
 	int inf;
-	int error = 0;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -1678,31 +1710,27 @@ static int ft232h_intf_probe(struct usb_interface *intf,
 			return -ENODEV;
 //			goto err;
 		}
-	}
-
-     if (priv->udev->product && !strcmp(priv->udev->product, "ft2232H-16ton")) {
+	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft2232H-16ton")) {
 		ret = ftx232h_jtag_probe(intf);
 		if (ret < 0) {
 			return -ENODEV;
 //			goto err;
 		}
-	}
-
-	eeprom = kobject_create_and_add("mpsse_sysfs",kernel_kobj);
-
-	if(eeprom == NULL) {
-		dev_info(&intf->dev, "failed to create the sysfs directory mpsse_sysfs\n");
-		return -ENOMEM;
+	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
+		ret = ftx232h_jtag_probe(intf);
+		if (ret < 0) {
+			return -ENODEV;
+//			goto err;
+		}
+	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-i2c")) {
+		dev_info(&intf->dev, "Ignoring single I2C interface reserved\n");
+		return -ENODEV;
+//			goto err;
 	} else {
-		dev_info(&intf->dev, "successfully created /sys/kernel/mpsse_sysfs directory\n");
+    return -ENODEV; 
 	}
 
-	error = sysfs_create_file(eeprom, &sysfs_attribute.attr);
-	if (error) {
-		dev_info(&intf->dev, "failed to create the sysfs file\n");
-	} else {
-		dev_info(&intf->dev, "successfully created sysfs file mpsse_sysfs/eeprom\n");
-	}
+	create_sysfs_attrs(intf);
 
 	iface_desc = intf->cur_altsetting;
 
@@ -1770,6 +1798,8 @@ static void ft232h_intf_disconnect(struct usb_interface *intf)
 	struct ft232h_intf_priv *priv = usb_get_intfdata(intf);
 	const struct ft232h_intf_info *info;
 
+	remove_sysfs_attrs(intf);
+
 	info = (struct ft232h_intf_info *)priv->usb_dev_id->driver_info;
 	if (info && info->remove)
 		info->remove(intf);
@@ -1780,10 +1810,9 @@ static void ft232h_intf_disconnect(struct usb_interface *intf)
 	if (info->use_cbus_gpio_ctrl)
 		gpiochip_remove(&priv->cbus_gpio);
 
-	kobject_put(eeprom);
-
 	mutex_lock(&priv->io_mutex);
 	priv->intf = NULL;
+	priv->mpsse_gpio.base = -1;
 	priv->mpsse_gpio.names = NULL;
 	usb_set_intfdata(intf, NULL);
 	mutex_unlock(&priv->io_mutex);
@@ -1804,6 +1833,8 @@ static struct usb_device_id ft232h_intf_table[] = {
 //		.driver_info = (kernel_ulong_t)&fpga_cfg_fifo_intf_info },
 //	{ USB_DEVICE(FTDI_VID, ARRI_SPI_INTF_PRODUCT_ID),
 //		.driver_info = (kernel_ulong_t)&fpga_cfg_spi_intf_info },
+	{ USB_DEVICE(FTDI_VID, 0x6014),
+        .driver_info = (kernel_ulong_t)&ftdi_spi_bus_intf_info },
 	{ USB_DEVICE(FTDI_VID, 0x6010),
         .driver_info = (kernel_ulong_t)&ftdi_spi_bus_intf_info },
 	{ USB_DEVICE(FTDI_VID, 0x6011),
