@@ -1,6 +1,7 @@
 These are linux drivers for ftdi mpsse devices i2c spi.
 
 UPDATES:
+Added newer patches for ftdi-sio to ignore the 16ton products, or if adventerus try the frankenstein ftdio driver in same folder with sync mode, all 3 types of gpio, and more, real ruff the gpio versions need a slight code change (one number), it has state machine etc. 
 Added ft423hpq and ft232h auto detect so models ft4232h ft232h ft4233hpq or ft2232h auto detected
 amount of gpios auto setup for each model.
 ft232h i2c now works and I believe (hope) its using open drain lol.
