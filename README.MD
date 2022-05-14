@@ -1,6 +1,15 @@
 These are linux drivers for ftdi mpsse devices i2c spi.
 
-UPDATE:
+UPDATES:
+Added ft423hpq and ft232h auto detect so models ft4232h ft232h ft4233hpq or ft2232h auto detected
+amount of gpios auto setup for each model.
+ft232h i2c now works and I believe (hope) its using open drain lol.
+mod params for 1m and 3.4m i2c clock speed no 3.4m setup code tho my ads1115 seems to not care, can only test clk speed up to 1m until pulseview and my fx2 stop being dinks. 
+SPI most of the code for a polled irq (polling irq gpio sucks maybe not get back to it) can be enabled even tho not currently working/finnished with modparam.
+A firmware for various st32f4's and stm32f103 for ub to i2c with gpio with irq support plus a kernel driver (modified i2c-tiny) is in the USB-GPIO folder and works but it doesnt auto export the gpio/irq so export set edge and direction to enble irq to pin, then unexport, hardcode the irq in ft232h-intf.c spi device section (IRQ will be printed to dmesg when module loads, so plug stm in first, set the irq in ft232h-intf.c and then load spi) This works much better then the polling methood ever will)
+Unfortunatly the ft4233hpq is too new for any support from libftdi or pyftdi etc so non of the open source eepom writing utils for linux/opensource currently work. Gotta use ft-prog toset the product name to 16ton*
+Maybe other stuff? I dont remember 
+
 '''
 model ft4232h or ft2232h auto detected
 amount of gpios auto setup for each model

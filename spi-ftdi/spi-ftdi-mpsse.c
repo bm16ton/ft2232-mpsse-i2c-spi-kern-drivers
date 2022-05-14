@@ -52,9 +52,7 @@ struct ftdi_spi {
 	const struct ft232h_intf_ops *iops;
 	struct gpiod_lookup_table *lookup[FTDI_MPSSE_GPIOS5];
 	struct gpio_desc **cs_gpios;
-	struct gpio_desc **dc_gpios;
-	struct gpio_desc **reset_gpios;
-	struct gpio_desc **interrupts_gpios;
+
 
 	u8 txrx_cmd;
 	u8 rx_cmd;
@@ -528,7 +526,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	struct spi_controller *master;
 	struct ftdi_spi *priv;
 	struct gpio_desc *desc;
-	u16 dc, reset, interrupts, num_cs, max_cs = 0;
+	u16 num_cs, max_cs = 0;
 	unsigned int i;
 	int ret;
 //	int ret2;
@@ -537,7 +535,9 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 
 	int ftmod2;
 	int ftmod4;
+	int ftmod1; 
 
+	ftmod1 = 232;
 	ftmod2 = 2232;
 	ftmod4 = 4232;
 
@@ -611,16 +611,6 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 		spi_controller_put(master);
 		return -ENOMEM;
 	}
-
-	priv->dc_gpios = devm_kcalloc(&master->dev, dc, sizeof(desc),
-				      GFP_KERNEL);
-
-	priv->reset_gpios = devm_kcalloc(&master->dev, reset, sizeof(desc),
-				      GFP_KERNEL);
-
-	priv->interrupts_gpios = devm_kcalloc(&master->dev, interrupts, sizeof(desc),
-				      GFP_KERNEL);
-
 
 	for (i = 0; i < num_cs; i++) {
 		unsigned int idx = pd->spi_info[i].chip_select;

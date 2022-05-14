@@ -475,6 +475,7 @@ static const struct i2c_algorithm ftdi_usb_i2c_algo = {
 
 static const struct usb_device_id ftdi_id_table[] = {
 	{ USB_DEVICE(0x0403, 0x6011) },
+	{ USB_DEVICE(0x0403, 0x6041) },
 	{ USB_DEVICE(0x0403, 0x6010) },
 	{ USB_DEVICE(0x0403, 0x6014) },
     { }
@@ -848,6 +849,12 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 	inf = ftdi->interface->cur_altsetting->desc.bInterfaceNumber;
 
 	if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft4232H-16ton")) {
+		ret = ftx232h_jtag_probe(interface);
+		if (ret < 0) {
+			ftdi_usb_delete(ftdi);
+			return -ENODEV;
+		}
+	} else if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft4233HPQ-16ton")) {
 		ret = ftx232h_jtag_probe(interface);
 		if (ret < 0) {
 			ftdi_usb_delete(ftdi);
