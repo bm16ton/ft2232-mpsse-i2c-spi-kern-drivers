@@ -1,6 +1,8 @@
 These are linux drivers for ftdi mpsse devices i2c spi.
 
 UPDATES:
+GPIO irq polling now works and has been very stable, obviously irq in spinlocks wont work, it is using the new gpiod instead of legacy the irq type is hardcoded in mpsse gpio add function and until i figureout a better way irq nmber is hard coded in spi device struct. But it works much better then i anticipated, tested with mcp251x and nrf24 irq requird kernel modules. 
+
 Added newer patches for ftdi-sio to ignore the 16ton products, or if adventerus try the frankenstein ftdio driver in same folder with sync mode, all 3 types of gpio, and more, real ruff the gpio versions need a slight code change (one number), it has state machine etc. 
 Added ft423hpq and ft232h auto detect so models ft4232h ft232h ft4233hpq or ft2232h auto detected
 amount of gpios auto setup for each model.
