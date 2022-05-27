@@ -183,15 +183,15 @@ static int ftdi_i2c_idle(struct ftdi_usb *ftdi)
 	int ret;
 
 	ftdi_mpsse_cmd_setup(&cmd, ftdi->buffer, ftdi->buffer_size);
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x40fb, 0xffff);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x40fb, 0xffff);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x40fb, 0xffff);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_submit(ftdi, &cmd);
 	if (ret < 0)
 		return ret;
@@ -206,15 +206,15 @@ static int ftdi_i2c_start(struct ftdi_usb *ftdi)
 	int ret;
 
 	ftdi_mpsse_cmd_setup(&cmd, ftdi->buffer, ftdi->buffer_size);
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fd);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fd);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x00fb, 0x00fd);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_submit(ftdi, &cmd);
 	if (ret < 0)
 		return ret;
@@ -222,15 +222,15 @@ static int ftdi_i2c_start(struct ftdi_usb *ftdi)
 	usleep_range(100, 200);
 
 	ftdi_mpsse_cmd_reset(&cmd);
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x40fb, 0x00fc);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x40fb, 0x00fc);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x40fb, 0x00fc);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_submit(ftdi, &cmd);
 	if (ret < 0)
 		return ret;
@@ -245,15 +245,15 @@ static int ftdi_i2c_stop(struct ftdi_usb *ftdi)
 	int ret;
 
 	ftdi_mpsse_cmd_setup(&cmd, ftdi->buffer, ftdi->buffer_size);
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fc);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fc);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x00fb, 0x00fc);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_submit(ftdi, &cmd);
 	if (ret < 0)
 		return ret;
@@ -261,31 +261,31 @@ static int ftdi_i2c_stop(struct ftdi_usb *ftdi)
 	usleep_range(100, 200);
 
 	ftdi_mpsse_cmd_reset(&cmd);
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fd);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fd);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x00fb, 0x00fd);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_submit(ftdi, &cmd);
 	if (ret < 0)
 		return ret;
 
 	usleep_range(100, 200);
 
-	ftdi_mpsse_cmd_reset(&cmd);
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x40fb, 0xffff);
-	if (ret < 0)
-		return ret;
-	} else {
+//	ftdi_mpsse_cmd_reset(&cmd);
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x40fb, 0xffff);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x40fb, 0xffff);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_submit(ftdi, &cmd);
 	if (ret < 0)
 		return ret;
@@ -304,15 +304,15 @@ static int ftdi_i2c_write_byte(struct ftdi_usb *ftdi, u8 byte)
 	if (ret < 0)
 		return ret;
 
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fe);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fe);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x00fb, 0x00fe);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 	ret = ftdi_mpsse_read_bits(&cmd, 1);
 	if (ret < 0)
 		return ret;
@@ -371,15 +371,15 @@ static int ftdi_i2c_read_bytes(struct ftdi_usb *ftdi, u8 *data, size_t size)
 		if (ret < 0)
 			return ret;
 
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fe);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fe);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 		ret = ftdi_mpsse_set_output(&cmd, 0x00fb, 0x00fe);
 		if (ret < 0)
 			return ret;
-	}
+//	}
 		ret = ftdi_mpsse_read_bytes(&cmd, 1);
 		if (ret < 0)
 			return ret;
@@ -389,15 +389,15 @@ static int ftdi_i2c_read_bytes(struct ftdi_usb *ftdi, u8 *data, size_t size)
 	if (ret < 0)
 		return ret;
 
-	if (isft232 == 1) {
-	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fe);
-	if (ret < 0)
-		return ret;
-	} else {
+//	if (isft232 == 1) {
+//	ret = ftdi_mpsse_set_output_232h(&cmd, 0x00fb, 0x00fe);
+//	if (ret < 0)
+//		return ret;
+//	} else {
 	ret = ftdi_mpsse_set_output(&cmd, 0x00fb, 0x00fe);
 	if (ret < 0)
 		return ret;
-	}
+//	}
 
 	ret = ftdi_mpsse_complete(&cmd);
 	if (ret < 0)
