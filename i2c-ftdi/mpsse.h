@@ -110,7 +110,8 @@ static inline int ftdi_mpsse_set_output(
 
 	cmd->buffer[cmd->offset++] = 0x80;
 	cmd->buffer[cmd->offset++] = pinvals & 0xff;
-	cmd->buffer[cmd->offset++] = pinmask & 0xff;
+//	cmd->buffer[cmd->offset++] = pinmask & 0xff;
+    cmd->buffer[cmd->offset++] = pinmask & 0x03;
 	cmd->buffer[cmd->offset++] = 0x82;
 	cmd->buffer[cmd->offset++] = (pinvals >> 8) & 0xff;
 	cmd->buffer[cmd->offset++] = (pinmask >> 8) & 0xff;
