@@ -1267,8 +1267,10 @@ loop:
 
 	usleep_range(priv->irq_poll_interval, priv->irq_poll_interval + 20);
 
-	goto loop;
-
+    if (irqon == 1) {
+	    goto loop;
+    }
+    
     printk(KERN_INFO  "Leaving gpio irq poll loop \n");
 
 }
@@ -1285,7 +1287,7 @@ static int ft232h_intf_add_mpsse_gpio(struct ft232h_intf_priv *priv)
 	char **names, *label;
 	int MPSSE_GPIOS;
 	int ret;
-
+//    int status;
     
 	ret = ftdi_read_eeprom(priv);
 	if (ret < 0)
@@ -1385,16 +1387,17 @@ static int ft232h_intf_add_mpsse_gpio(struct ft232h_intf_priv *priv)
 				pr_info("failed request one  = %s\n", priv->interrupt_name);
 		}
 
-
-//    status = gpiod_export(priv->interrupt_gpio, true);
-//        if (status < 0)
-//     {
-//        printk(KERN_ALERT "Failed to export gpio");
-//     }
-     
+/*
+    status = gpiod_export(priv->interrupt_gpio, false);
+        if (status < 0)
+     {
+        printk(KERN_ALERT "Failed to export gpio");
+     }
+ */    
      irqon = 1;
      priv->old_value = ftdi_mpsse_gpio_get(&priv->mpsse_gpio, 3);
 
+    printk(KERN_INFO  "end of add gpio mpsse\n");
        
         ftdi_mpsse_gpio_to_irq(&priv->mpsse_gpio, 3);
         INIT_WORK(&priv->irq_work, ftdix_read_gpios);
@@ -1598,6 +1601,11 @@ static const struct property_entry mcp2515_properties[] = {
 	{}
 };
 
+static const struct property_entry nrf24_properties[] = {
+	PROPERTY_ENTRY_U32("interrupts", 3),
+	{}
+};
+
 static const struct property_entry eeprom_93xx46_properties[] = {
 	PROPERTY_ENTRY_U32("spi-max-frequency", 1000000),
 	PROPERTY_ENTRY_U32("data-size", 16),
@@ -1634,10 +1642,10 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
     .bus_num	= 0,
     .chip_select	= 0,
     .platform_data	= ftdi_spi_dev_data,
-// 	.properties	= mcp2515_properties,    //changed from properties to swnode i dunno aroun kernel 5.15ish
+// 	.properties	= nrf24_properties,    //changed from properties to swnode i dunno aroun kernel 5.15ish
 //    .properties	= eeprom_93xx46_properties,
 //	.swnode  =  &mcp2515_node,
-	.irq     = 182,
+	.irq     = 0,
     },
 //   {
 //    .modalias	= "spi-petra",    //use instead of spidev for spidev no-longer enumerates
@@ -1651,7 +1659,7 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
 //    },
 };
 
-static const struct mpsse_spi_platform_data ftdi_spi_bus_plat_data = {
+static struct mpsse_spi_platform_data ftdi_spi_bus_plat_data = {
     .ops		= &ft232h_intf_ops,
     .spi_info	= ftdi_spi_bus_info,
     .spi_info_len	= ARRAY_SIZE(ftdi_spi_bus_info),
@@ -1697,14 +1705,27 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
 	size_t lookup_size, tbl_size;
 	int i, ret;
 
+	ret = ft232h_intf_add_mpsse_gpio(priv);
+	if (ret < 0)
+		goto err;
+		
+    pd->spi_info[0].irq = GPIO_irqNumber;
+
 	pdev = platform_device_alloc(SPI_INTF_DEVNAME, 0);
 	if (!pdev)
 		return NULL;
 
 	pdev->dev.parent = parent;
 	pdev->dev.fwnode = NULL;
-	priv->spi_pdev = pdev;
+	
+	
+	printk(KERN_INFO  "plat dev mpsse dev register\n");
+	printk(KERN_INFO "spi-info irq struct = %d\n", pd->spi_info[0].irq);
 
+
+
+	priv->spi_pdev = pdev;
+    
 	tbl_size = pd->spi_info_len + 1;
 	lookup_size = sizeof(*lookup) + tbl_size * sizeof(struct gpiod_lookup);
 	lookup = devm_kzalloc(parent, lookup_size, GFP_KERNEL);
@@ -1725,9 +1746,9 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
 
 	pdev->id = priv->id;
 
-	ret = ft232h_intf_add_mpsse_gpio(priv);
-	if (ret < 0)
-		goto err;
+//	ret = ft232h_intf_add_mpsse_gpio(priv);
+//	if (ret < 0)
+//		goto err;
 
 //16ton
     priv->ce_gpio = gpiochip_request_own_desc(&priv->mpsse_gpio, 
@@ -1792,6 +1813,7 @@ static int ft232h_intf_spi_probe(struct usb_interface *intf,
 	}
 
 	priv->spi_pdev = pdev;
+
 	return 0;
 }
 
