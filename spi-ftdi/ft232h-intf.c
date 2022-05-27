@@ -1387,13 +1387,6 @@ static int ft232h_intf_add_mpsse_gpio(struct ft232h_intf_priv *priv)
 				pr_info("failed request one  = %s\n", priv->interrupt_name);
 		}
 
-/*
-    status = gpiod_export(priv->interrupt_gpio, false);
-        if (status < 0)
-     {
-        printk(KERN_ALERT "Failed to export gpio");
-     }
- */    
      irqon = 1;
      priv->old_value = ftdi_mpsse_gpio_get(&priv->mpsse_gpio, 3);
 
@@ -1711,6 +1704,16 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
 		
     pd->spi_info[0].irq = GPIO_irqNumber;
 
+    priv->ce_gpio = gpiochip_request_own_desc(&priv->mpsse_gpio, 
+                                                1,
+                                                "ce",
+                                                GPIOD_OUT_LOW,
+                                                GPIO_ACTIVE_HIGH);
+                                                
+    gpiod_direction_output(priv->ce_gpio, true);
+    
+    gpiochip_free_own_desc(priv->ce_gpio);
+    
 	pdev = platform_device_alloc(SPI_INTF_DEVNAME, 0);
 	if (!pdev)
 		return NULL;
@@ -1718,11 +1721,7 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
 	pdev->dev.parent = parent;
 	pdev->dev.fwnode = NULL;
 	
-	
-	printk(KERN_INFO  "plat dev mpsse dev register\n");
 	printk(KERN_INFO "spi-info irq struct = %d\n", pd->spi_info[0].irq);
-
-
 
 	priv->spi_pdev = pdev;
     
@@ -1746,21 +1745,7 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
 
 	pdev->id = priv->id;
 
-//	ret = ft232h_intf_add_mpsse_gpio(priv);
-//	if (ret < 0)
-//		goto err;
 
-//16ton
-    priv->ce_gpio = gpiochip_request_own_desc(&priv->mpsse_gpio, 
-                                                1,
-                                                "ce",
-                                                GPIOD_OUT_LOW,
-                                                GPIO_ACTIVE_HIGH);
-                                                
-    gpiod_direction_output(priv->ce_gpio, true);
-    
-    gpiochip_free_own_desc(priv->ce_gpio);
-    
 	lookup->dev_id = devm_kasprintf(parent, GFP_KERNEL, "%s.%d",
 					pdev->name, pdev->id);
 	if (!lookup->dev_id) {
@@ -1868,23 +1853,18 @@ int ft232h_intf_get_model(struct usb_interface *intf)
 	priv->udev = usb_get_dev(interface_to_usbdev(intf));
     if (priv->udev->product && !strcmp(priv->udev->product, "ft4232H-16ton")) {
 	priv->ftmodel = ftmod4;
-//	dev_info(dev, "model %d\n", priv->ftmodel);
 	} 
     if (priv->udev->product && !strcmp(priv->udev->product, "ft4233HPQ-16ton")) {
 	priv->ftmodel = ftmod4;
-//	dev_info(dev, "model %d\n", priv->ftmodel);
 	} 
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft2232H-16ton")) {
 	priv->ftmodel = ftmod2;
-//	dev_info(dev, "model %d\n", priv->ftmodel);
 	} 	
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
 	priv->ftmodel = ftmod2;
-//	dev_info(dev, "model %d\n", priv->ftmodel);
 	}
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
 	priv->ftmodel = ftmod1;
-//	dev_info(dev, "model %d\n", priv->ftmodel);
 	} 	
 	ret = priv->ftmodel;
 	return ret;
@@ -1910,23 +1890,18 @@ int ft232h_intf_get_numgpio(struct usb_interface *intf)
 	priv->udev = usb_get_dev(interface_to_usbdev(intf));
     if (priv->udev->product && !strcmp(priv->udev->product, "ft4232H-16ton")) {
 	priv->numgpio = ftgpio4;
-//	dev_info(dev, "mpsse gpio num %d\n", priv->numgpio);
 	} 
     if (priv->udev->product && !strcmp(priv->udev->product, "ft4233HPQ-16ton")) {
 	priv->numgpio = ftgpio4;
-//	dev_info(dev, "mpsse gpio num %d\n", priv->numgpio);
 	} 
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft2232H-16ton")) {
 	priv->numgpio = ftgpio2;
-//	dev_info(dev, "mpsse gpio num  %d\n", priv->numgpio);
 	} 	
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
 	priv->numgpio = ftgpio2;
-//	dev_info(dev, "mpsse gpio num  %d\n", priv->numgpio);
 	} 
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
 	priv->numgpio = ftgpio2;
-//	dev_info(dev, "mpsse gpio num  %d\n", priv->numgpio);
 	} 
 	ret = priv->numgpio;
 //	kfree (priv);
@@ -1974,30 +1949,25 @@ static int ft232h_intf_probe(struct usb_interface *intf,
 	 	ret = ftx232h_jtag_probe(intf);
 		if (ret < 0) {
 			return -ENODEV;
-//			goto err;
 		}
     } else if (priv->udev->product && !strcmp(priv->udev->product, "ft4233HPQ-16ton")) {
 	 	ret = ftx232h_jtag_probe(intf);
 		if (ret < 0) {
 			return -ENODEV;
-//			goto err;
 		}
 	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft2232H-16ton")) {
 		ret = ftx232h_jtag_probe(intf);
 		if (ret < 0) {
 			return -ENODEV;
-//			goto err;
 		}
 	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
 		ret = ftx232h_jtag_probe(intf);
 		if (ret < 0) {
 			return -ENODEV;
-//			goto err;
 		}
 	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-i2c")) {
 		dev_info(&intf->dev, "Ignoring single I2C interface reserved\n");
 		return -ENODEV;
-//			goto err;
 	} else {
     return -ENODEV; 
     }	
@@ -2071,7 +2041,7 @@ static void ft232h_intf_disconnect(struct usb_interface *intf)
 	const struct ft232h_intf_info *info;
     int i;
     irqon = 0;
-    cancel_work_sync(&priv->irq_work);
+//    cancel_work_sync(&priv->irq_work);
     
 	remove_sysfs_attrs(intf);
 
