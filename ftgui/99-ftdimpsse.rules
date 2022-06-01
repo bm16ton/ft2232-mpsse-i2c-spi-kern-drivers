@@ -1,0 +1,3 @@
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idProduct}=="6014", RUN="/bin/systemctl enable --now mpssegui.service"
+ACTION=="remove", SUBSYSTEM=="usb", ATTR{idProduct}=="6014", RUN="/bin/systemctl disable --now mpssegui.service"
+

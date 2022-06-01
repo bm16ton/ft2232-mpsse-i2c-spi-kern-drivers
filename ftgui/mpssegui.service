@@ -1,0 +1,14 @@
+[Unit]
+Description=ft232hgui
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ft232h-app
+ExecStopPost=systemctl disable --now mpssegui.service
+RemainAfterExit=false
+TimeoutStartSec=infinity
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
+Alias=mpssegui.service

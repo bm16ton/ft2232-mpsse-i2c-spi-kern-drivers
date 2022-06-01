@@ -34,6 +34,10 @@ int i2c_ftdi_adaptive;
 module_param_named(adaptive, i2c_ftdi_adaptive, int, 0444);
 MODULE_PARM_DESC(adaptive, "clock stretching hack NOT WORKING");
 
+int i2c_bind232h;
+module_param_named(bind232h, i2c_bind232h, int, 0444);
+MODULE_PARM_DESC(bind232h, "bind to 232h 16ton");
+
 int isft232 = 0;
 
 const int FTDI_IO_TIMEOUT = 5000;
@@ -866,12 +870,6 @@ static int ftdi_usb_probe(struct usb_interface *interface,
 			ftdi_usb_delete(ftdi);
 			return -ENODEV;
 		}
-	} else if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft232H-16ton")) {
-		ret = ftx232h_single_probe(interface);
-		if (ret < 0) {
-			ftdi_usb_delete(ftdi);
-				return -ENODEV;
-	 	}
 	} else if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft232H-16ton-i2c")) {
 		ret = ftx232h_single_probe(interface);
 		if (ret < 0) {
@@ -882,6 +880,14 @@ static int ftdi_usb_probe(struct usb_interface *interface,
         dev_info(&interface->dev, "Ignoring single spi  Interface\n");
 		ftdi_usb_delete(ftdi);
 				return -ENODEV;
+	} else if (i2c_bind232h) {
+	    if (ftdi->udev->product && !strcmp(ftdi->udev->product, "ft232H-16ton")) {
+	        		ret = ftx232h_single_probe(interface);
+		            if (ret < 0) {
+			            ftdi_usb_delete(ftdi);
+				        return -ENODEV;
+	                }
+        }
 	}  else {
     return -ENODEV;
 	}

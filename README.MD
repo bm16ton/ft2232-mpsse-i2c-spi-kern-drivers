@@ -2,6 +2,9 @@ These are linux drivers for ftdi mpsse devices i2c spi.
 
 UPDATES:
 
+Tired of rewritting eeprom of ft232h series between spi/i2c so i wrote a few more kernel parameters, udev rule, systemd service , and a simple first draft gui app that starts when the ft232h is plugged in (make sure product is ft232h-16ton) that lets you select i2c/spi/uart and options. Simply cd ftgui and run ./install-ftgui.sh   this will install all dependencies for gtkdialog then gtkdialogs souce compile it and install it, then install the udev rule, the systemd service, and gui app. Now when ft232h is plugged in it should autostart the app.
+Remember to also patch ftdi-sio with the new ftdi-sio/2nd-ftdi_sio.patch patch.
+
 IRQ now passes automatically no more hardcoding it!!
 
 GPIO irq polling now works and has been very stable, obviously irq in spinlocks wont work, it is using the new gpiod instead of legacy the irq type is hardcoded in mpsse gpio add function and until i figureout a better way irq nmber is hard coded in spi device struct. But it works much better then i anticipated, tested with mcp251x and nrf24 irq requird kernel modules. 

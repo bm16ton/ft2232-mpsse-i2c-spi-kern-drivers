@@ -1,0 +1,147 @@
+#!/bin/sh
+
+rm /tmp/poop 2> /dev/null
+rm /tmp/irqper 2> /dev/null
+rm /tmp/usbwait 2> /dev/null
+
+[ -z $GTKDIALOG ] && GTKDIALOG=gtkdialog
+
+IMAGEFILE="`find /usr/share/pixmaps -maxdepth 1 -type f | head -1`"
+
+MAIN_DIALOG='
+<window>
+	<vbox homogeneous="false" space-expand="false" space-fill="false">
+		<vbox>
+			<text label="i2c options">
+				<variable>txtExample</variable>
+			</text>
+		</vbox>
+		<vbox>
+			<checkbox>
+				<label>clock stretching</label>
+				<variable>CHECKBOX</variable>
+				<action>echo Checkbox is $CHECKBOX now.</action>
+			</checkbox>
+		</vbox>
+		<hseparator></hseparator>
+		<vbox>
+		<tree>
+		    <label>I2cspeed</label>
+			<variable>LIST</variable>
+			<item>100k</item>
+			<item>400k</item>
+			<item>1m</item>
+			<item>3m</item>
+			<action>echo "$LIST=1" > /tmp/poop</action>
+			<action>cat /tmp/poop</action>
+			<action>grep 400k /tmp/poop && echo"" > /tmp/poop</action>
+			<action>cat /tmp/poop</action>
+		</tree>
+		</vbox>
+		<vbox>
+			<button>
+				<label>Start I2C</label>
+				<action>sudo modprobe -r ftdi-sio</action>
+				<action>sudo modprobe -r i2c-ftdi</action>
+				<action>sudo modprobe -r spi_ftdi_mpsse ft232h_intf</action>
+				<action>sudo modprobe i2c-ftdi bind232h=1 $(cat /tmp/poop)</action>
+			</button>
+		</vbox>
+		<hseparator></hseparator>
+		<vbox>
+				<text label="spi options">
+					<variable>txtExample2</variable>
+				</text>
+		</vbox>
+		<vbox>
+			<checkbox>
+				<label>debug</label>
+				<variable>CHECKBOX5</variable>
+				<action>echo Checkbox is $CHECKBOX6 now.</action>
+			</checkbox>
+		</vbox>
+		<vbox>
+			<checkbox>
+				<label>irqpoll</label>
+				<variable>CHECKBOX6</variable>
+				<action>echo Checkbox is $CHECKBOX6 now.</action>
+			</checkbox>
+		</vbox>
+		<vbox>
+			<checkbox>
+				<label>Set IRQ poll period</label>
+				<variable>CHECKBOX7</variable>
+				<action>echo Checkbox is $CHECKBOX1 now.</action>
+				<action>if true enable:COMBOBOX1</action>
+				<action>if false disable:COMBOBOX1</action>
+			</checkbox>
+		</vbox>
+		<vbox>
+			<comboboxentry>
+				<sensitive>false</sensitive>
+				<variable>COMBOBOX1</variable>
+				<item></item>
+				<item>10</item>
+				<item>20</item>
+				<item>30</item>
+				<action>echo "poll_period=$COMBOBOX1" > /tmp/irqper</action>
+				<action>cat /tmp/irqper</action>
+			</comboboxentry>
+		</vbox>
+		<vbox>
+			<checkbox>
+				<label>usb wait period after tx ms</label>
+				<variable>CHECKBOX8</variable>
+				<action>echo Checkbox is $CHECKBOX2 now.</action>
+				<action>if true enable:COMBOBOX2</action>
+				<action>if false disable:COMBOBOX2</action>
+			</checkbox>
+		</vbox>
+		<vbox>
+			<comboboxentry>
+				<sensitive>false</sensitive>
+				<variable>COMBOBOX2</variable>
+				<item></item>
+				<item>10</item>
+				<item>20</item>
+				<item>30</item>
+				<action>echo "poll_period=$COMBOBOX1" > /tmp/irqper</action>
+				<action>cat /tmp/usbwait</action>
+			</comboboxentry>
+		</vbox>
+		<vbox>
+			<button>
+				<label>Start Spi</label>
+				<action>sudo modprobe -r ftdi-sio</action>
+				<action>sudo modprobe -r i2c-ftdi</action>
+				<action>sudo modprobe -r spi_ftdi_mpsse ft232h_intf</action>
+				<action>sudo modprobe ft232h-intf bind232h=1 $(cat /tmp/irqper) $(cat /tmp/usbwait) </action>
+			</button>
+		</vbox>
+		<hseparator></hseparator>
+		<vbox>
+			<button>
+				<label>Start ftdi serial</label>
+				<action>sudo modprobe -r ftdi-sio</action>
+				<action>sudo modprobe -r i2c-ftdi</action>
+				<action>sudo modprobe -r spi_ftdi_mpsse ft232h_intf</action>
+				<action>sudo modprobe ftdi-sio bind232h=1</action>
+			</button>
+		</vbox>
+		<hseparator></hseparator>
+		<hbox>
+			<button ok></button>
+			<button cancel></button>
+			<button help>
+			<action>echo You pressed the Help button.</action>
+			</button>
+		</hbox>
+		</vbox>
+</window>
+'
+export MAIN_DIALOG
+
+case $1 in
+	-d | --dump) echo "$MAIN_DIALOG" ;;
+	*) $GTKDIALOG --program=MAIN_DIALOG ;;
+esac
