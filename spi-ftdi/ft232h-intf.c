@@ -146,6 +146,10 @@ int irqpoll;
 module_param(irqpoll, int, S_IRUSR | S_IWUSR);
 MODULE_PARM_DESC(irqpoll, "enabled poll based irq gpio pin AD6");
 
+int bind232h;
+module_param(bind232h, int, S_IRUSR | S_IWUSR);
+MODULE_PARM_DESC(bind232h, "bind to 232h 16ton");
+
 struct ft232h_intf_priv {
     char *name;
 	struct usb_interface	*intf;
@@ -1302,8 +1306,8 @@ static int ft232h_intf_add_mpsse_gpio(struct ft232h_intf_priv *priv)
 	priv->mpsse_gpio.label = label;
 	priv->mpsse_gpio.parent = dev;
 	priv->mpsse_gpio.owner = THIS_MODULE;
-	priv->mpsse_gpio.request= NULL;
-    priv->mpsse_gpio.free   = NULL;
+//	priv->mpsse_gpio.request= NULL;      //16ton?
+//	priv->mpsse_gpio.free   = NULL;          //16ton?
 	priv->mpsse_gpio.base = -1;
 	priv->mpsse_gpio.ngpio = MPSSE_GPIOS;
 	priv->mpsse_gpio.can_sleep = true;
@@ -1311,8 +1315,8 @@ static int ft232h_intf_add_mpsse_gpio(struct ft232h_intf_priv *priv)
 	priv->mpsse_gpio.get = ftdi_mpsse_gpio_get;
 	priv->mpsse_gpio.direction_input = ftdi_mpsse_gpio_direction_input;
  	priv->mpsse_gpio.direction_output = ftdi_mpsse_gpio_direction_output;
+	if (irqpoll) {
 	priv->mpsse_gpio.to_irq = ftdi_mpsse_gpio_to_irq;
-    if (irqpoll) {
     	priv->irq.name = "usbgpio-irq";
     	priv->irq.irq_set_type = usbirq_irq_set_type;
         priv->irq.irq_enable = usb_gpio_irq_enable;
@@ -1625,8 +1629,8 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
     {
 //    .modalias	= "yx240qv29",
 //	.modalias	= "ili9341",
-//	.modalias	= "mcp2515",
-    .modalias	= "nrf24",
+	.modalias	= "mcp2515",
+//    .modalias	= "nrf24",
 //    .modalias	= "eeprom_93xx46",
 //	.modalias	= "ili9341",
     .mode		= SPI_MODE_0,
@@ -1636,9 +1640,9 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
     .chip_select	= 0,
     .platform_data	= ftdi_spi_dev_data,
 // 	.properties	= nrf24_properties,    //changed from properties to swnode i dunno aroun kernel 5.15ish
-//    .properties	= eeprom_93xx46_properties,
+    .properties	= mcp2515_properties,
 //	.swnode  =  &mcp2515_node,
-	.irq     = 0,
+//	.irq     = 0,
     },
 //   {
 //    .modalias	= "spi-petra",    //use instead of spidev for spidev no-longer enumerates
@@ -1713,6 +1717,8 @@ static struct platform_device *mpsse_dev_register(struct ft232h_intf_priv *priv,
     gpiod_direction_output(priv->ce_gpio, true);
     
     gpiochip_free_own_desc(priv->ce_gpio);
+    
+    irq_set_irq_type(GPIO_irqNumber, IRQ_TYPE_EDGE_FALLING);
     
 	pdev = platform_device_alloc(SPI_INTF_DEVNAME, 0);
 	if (!pdev)
@@ -1866,6 +1872,11 @@ int ft232h_intf_get_model(struct usb_interface *intf)
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
 	priv->ftmodel = ftmod1;
 	} 	
+	if (bind232h) {
+	    if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
+	    priv->ftmodel = ftmod1;
+	    }
+	}
 	ret = priv->ftmodel;
 	return ret;
 }
@@ -1900,9 +1911,12 @@ int ft232h_intf_get_numgpio(struct usb_interface *intf)
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
 	priv->numgpio = ftgpio2;
 	} 
+	if (bind232h) {
 	if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
 	priv->numgpio = ftgpio2;
 	} 
+	}
+
 	ret = priv->numgpio;
 //	kfree (priv);
 	return ret;
@@ -1960,6 +1974,13 @@ static int ft232h_intf_probe(struct usb_interface *intf,
 		if (ret < 0) {
 			return -ENODEV;
 		}
+	} else if (bind232h) {
+		if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton")) {
+		    ret = ftx232h_jtag_probe(intf);
+		    if (ret < 0) {
+			return -ENODEV;
+		}
+	  }
 	} else if (priv->udev->product && !strcmp(priv->udev->product, "ft232H-16ton-spi")) {
 		ret = ftx232h_jtag_probe(intf);
 		if (ret < 0) {
