@@ -127,6 +127,8 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/of_address.h>
 #include <linux/of_gpio.h>
+#include <linux/kobject.h>
+#include <linux/kdev_t.h>
 
 #include <linux/fs.h>
 #include <linux/string.h>
@@ -228,6 +230,11 @@ struct ft232h_intf_device {
 
 };
 
+dev_t dev =0;
+//static struct class *dev_class;
+struct kobject *kobj_ref;
+
+
 
 unsigned int gpio_no = 3;
 
@@ -253,31 +260,39 @@ static uint poll_period = POLL_PERIOD_MS;       // module parameter poll period
 
 unsigned int GPIO_irqNumber;
 
-static ssize_t eeprom_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
+static ssize_t eeprom_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
 {
-	struct ft232h_intf_priv *priv = dev_get_drvdata(dev);
-    ftdi_read_eeprom(priv);
+ //  struct ft232h_intf_priv *priv = container_of(*intf, struct ft232h_intf_priv,
+ //                                     mpsse_gpio);
+//	struct ft232h_intf_priv *priv = dev_get_drvdata(dev);
+//    ftdi_read_eeprom(priv);
 //    return sysfs_emit(buf, "%hh \n", priv->eeprom);
     return 0;
 }
 
 
-static ssize_t eeprom_store(struct device *dev,
-				   struct device_attribute *attr,
+static ssize_t eeprom_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
 				   const char *valbuf, size_t count)
 {
         return count;
 }
-static DEVICE_ATTR_RW(eeprom);
+struct kobj_attribute eeprom = __ATTR(eeprom, 0660, eeprom_show, eeprom_store);
+//static DEVICE_ATTR_RW(eeprom);
 
 
 static int create_sysfs_attrs(struct usb_interface *intf)
 {
 	int retval = 0;
 
-			retval = device_create_file(&intf->dev,
-						    &dev_attr_eeprom);
+    kobj_ref = kobject_create_and_add("mpsse",NULL); 
+    
+
+//			retval = device_create_file(&intf->dev,
+//						    &dev_attr_eeprom);
+
+            retval = sysfs_create_file(kobj_ref,&eeprom.attr);
 						    
 	return retval;
 }
@@ -285,7 +300,8 @@ static int create_sysfs_attrs(struct usb_interface *intf)
 static void remove_sysfs_attrs(struct usb_interface *intf)
 {
 
-			device_remove_file(&intf->dev, &dev_attr_eeprom);
+//			device_remove_file(&intf->dev, &dev_attr_eeprom);
+            sysfs_remove_file(kobj_ref,&eeprom.attr);
 }
 
 /* Use baudrate calculation borrowed from libftdi */
@@ -1421,24 +1437,36 @@ static void usb_gpio_irq_enable(struct irq_data *irqd)
     struct ft232h_intf_priv *priv = irq_data_get_irq_chip_data(irqd);
 
 	/* Is that needed? */
-	irqon = 1;
+	;
 
     if (priv->irq_enabled[3]) {
         printk(KERN_INFO  "IRQ already enabled returning\n");        
 		return;
     }
-
-
+    
+    if (irqon == 0) {
+    irqon = 1;
+    INIT_WORK(&priv->irq_work, ftdix_read_gpios);
+	schedule_work(&priv->irq_work);
+	}
+	
     priv->irq_enabled[3] = true;
+    printk(KERN_INFO  "IRQ enabled\n");
    
 }
 
 static void usb_gpio_irq_disable(struct irq_data *irqd)
 {
     struct ft232h_intf_priv *priv = irq_data_get_irq_chip_data(irqd);
-//    irqon = 0;
 
+	if (irqon == 1) {            
+		irqon = 0;
+		cancel_work_sync(&priv->irq_work);
+	}
+    
     priv->irq_enabled[3] = false;
+    usleep_range(100, 200);
+    printk(KERN_INFO  "IRQ disabled\n");
 
 }
 
@@ -1642,10 +1670,11 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
 //    .modalias	= "yx240qv29",
 //	.modalias	= "ili9341",
 //	.modalias	= "mcp2515",
+//    .modalias	= "spi-petra",
     .modalias	= "nrf24",
-//    .modalias	= "eeprom_93xx46",
 //	.modalias	= "ili9341",
     .mode		= SPI_MODE_0,
+//    .mode		= SPI_MODE_0 | SPI_LSB_FIRST | SPI_CS_HIGH,
     .max_speed_hz	= 4000000,
 //    .max_speed_hz	= 30000000,
     .bus_num	= 0,
@@ -1828,7 +1857,6 @@ static int ft232h_intf_spi_remove(struct usb_interface *intf)
 	dev_dbg(dev, "%s: spi pdev %p\n", __func__, priv->spi_pdev);
 	gpiod_remove_lookup_table(priv->lookup_cs);
     priv->irq_enabled[3] = false;
-    
 	platform_device_unregister(priv->spi_pdev);
 	return 0;
 }
@@ -2073,14 +2101,18 @@ static void ft232h_intf_disconnect(struct usb_interface *intf)
 {
 	struct ft232h_intf_priv *priv = usb_get_intfdata(intf);
 	const struct ft232h_intf_info *info;
-    int i;
+    
 	if (irqon == 1) {            
 		irqon = 0;
 		cancel_work_sync(&priv->irq_work);
 	}
     
-	remove_sysfs_attrs(intf);
-
+    usleep_range(5000, 5200);
+    
+    kobject_put(kobj_ref);
+	sysfs_remove_file(kernel_kobj, &eeprom.attr);
+    
+    
 	info = (struct ft232h_intf_info *)priv->usb_dev_id->driver_info;
 	if (info && info->remove)
 		info->remove(intf);
