@@ -4,6 +4,8 @@ rm /tmp/poop 2> /dev/null
 rm /tmp/irqper 2> /dev/null
 rm /tmp/usbwait 2> /dev/null
 
+TTYNUM=$(listSerialC | grep ft232H-16ton | awk '{ print $1 }')
+
 [ -z $GTKDIALOG ] && GTKDIALOG=gtkdialog
 
 IMAGEFILE="`find /usr/share/pixmaps -maxdepth 1 -type f | head -1`"
@@ -126,6 +128,7 @@ MAIN_DIALOG='
 				<action>sudo modprobe -r i2c-ftdi</action>
 				<action>sudo modprobe -r spi_ftdi_mpsse ft232h_intf</action>
 				<action>sudo modprobe ftdi-sio bind232h=1</action>
+				<action>ft232h-chmod</action>
 			</button>
 		</vbox>
 		<hseparator></hseparator>

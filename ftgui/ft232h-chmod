@@ -1,0 +1,3 @@
+#!/bin/bash
+TTYNUM=$(listSerialC | grep ft232H-16ton | awk '{ print $1 }')
+sudo chmod aou+wr $TTYNUM

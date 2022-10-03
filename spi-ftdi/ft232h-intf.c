@@ -1671,30 +1671,30 @@ static struct spi_board_info ftdi_spi_bus_info[] = {
 //	.modalias	= "ili9341",
 //	.modalias	= "mcp2515",
 //    .modalias	= "spi-petra",
-    .modalias	= "nrf24",
+    .modalias	= "spi-petra",
 //	.modalias	= "ili9341",
     .mode		= SPI_MODE_0,
 //    .mode		= SPI_MODE_0 | SPI_LSB_FIRST | SPI_CS_HIGH,
-    .max_speed_hz	= 4000000,
+    .max_speed_hz	= 30000000,
 //    .max_speed_hz	= 30000000,
     .bus_num	= 0,
-    .chip_select	= 0,
-    .platform_data	= ftdi_spi_dev_data,
+    .chip_select	= 4,
 // 	.properties	= nrf24_properties,    //changed from properties to swnode i dunno aroun kernel 5.15ish
 //    .properties	= mcp2515_properties,
 //	.swnode  =  &mcp2515_node,
 //	.irq     = 0,
     },
-//   {
-//    .modalias	= "spi-petra",    //use instead of spidev for spidev no-longer enumerates
+   {
+    .modalias	= "nrf24",    //use instead of spidev for spidev no-longer enumerates
 //    .modalias	= "w25q32",
 //	  .modalias	= "spidev",
-//    .mode		= SPI_MODE_0,
+    .mode		= SPI_MODE_0,
 //    .mode		= SPI_MODE_0 | SPI_LSB_FIRST | SPI_CS_HIGH,
-//    .max_speed_hz	= 30000000,
-//    .bus_num	= 0,
-//    .chip_select	= 4, // GPIOH0 at ACBUS0
-//    },
+    .max_speed_hz	= 4000000,
+    .bus_num	= 0,
+    .chip_select	= 0, // GPIOH0 at ACBUS0
+    .platform_data	= ftdi_spi_dev_data,
+    },
 };
 
 static const struct mpsse_spi_platform_data ftdi_spi_bus_plat_data = {

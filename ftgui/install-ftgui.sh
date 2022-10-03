@@ -10,8 +10,8 @@ sudo cp src/gtkdialog /usr/local/bin/
 ./switch-gcc-back.sh
 cd ..
 sed -i 's/maddocks/'"$USER"'/g' ft232h-app
-sudo cp ft232h-app* /usr/local/bin
-sudo chmod +x /usr/local/bin/ft232h-app*
+sudo cp ft232h* /usr/local/bin
+sudo chmod +x /usr/local/bin/ft232h*
 sudo cp mpssegui.service /lib/systemd/system/
 sudo systemctl enable --now mpssegui.service
 sudo cp 99-ftdimpsse.rules /etc/udev/rules.d

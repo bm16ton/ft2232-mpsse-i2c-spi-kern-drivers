@@ -1,4 +1,5 @@
 #!/bin/bash
 
 export DISPLAY=:0
-exec sudo -u maddocks pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY /usr/local/bin/ft232h-app-real
+exec pkexec --user  maddocks env DISPLAY=$DISPLAY XAUTHORITY=/home/maddocks/.Xauthority  /usr/local/bin/ft232h-app-real
+#exec sudo -u maddocks pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY /usr/local/bin/ft232h-app-real
