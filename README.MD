@@ -1,6 +1,6 @@
 These are linux drivers for ftdi mpsse devices i2c spi.
 
-UPDATES:
+> UPDATES:
 
 Tired of rewritting eeprom of ft232h series between spi/i2c so i wrote a few more kernel parameters, udev rule, systemd service , and a simple first draft gui app that starts when the ft232h is plugged in (make sure product is ft232h-16ton) that lets you select i2c/spi/uart and options. Simply cd ftgui and run ./install-ftgui.sh   this will install all dependencies for gtkdialog then gtkdialogs souce compile it and install it, then install the udev rule, the systemd service, and gui app. Now when ft232h is plugged in it should autostart the app.
 Remember to also patch ftdi-sio with the new ftdi-sio/2nd-ftdi_sio.patch patch.
@@ -30,33 +30,36 @@ Added of_tables and spi_tables tho this is a platform driver so not sure how to 
 various fixes
 '''
 
-OUT_OF_TREE_COMPILES 1st replace #include <linux/usb/ft232h-intf.h> with #include "linux/usb/ft232h-intf.h" in both ft232h-intf.c and spi-ftdi-mpsse.c. So model number is now detected ft4232h vs ft2232h and the amount of gpios is setup automatically according to version. This data is shared between the interface driver and the spi driver by exported symbols so not sure how well outa tree compiles will go, make sure your kernel doesnt have module versioning support enabled (MODVERSIONS) and worse come worse you can always manually add the symbols to the Module.symvers. and dont use insmod but cp it to your lib/modules. I highly recommend integrating the driver into source tree or using one my of kernels github.com/bm16ton. These changes are probly very simple easy things for smart people, but all my knowledge comes exclusively from looking at other code/examples/commits even the most basic of structures and wording can take me hour and hundreds of compiles. So things are bound to be wrong (IE gpio lookup tables for dc,reset,interrupts ignore naming of that last one was playing with polled gpio irq) but its working. Any help would be super greatly appreciated. Dumping even the raw hex of the eeprom via the new sysfs file is gonna be a mountain for me, so please. 
+__OUT_OF_TREE_COMPILES__ 1st replace #include `<linux/usb/ft232h-intf.h>` with `#include "linux/usb/ft232h-intf.h"` in both `ft232h-intf.c` and `spi-ftdi-mpsse.c`. So model number is now detected ft4232h vs ft2232h and the amount of gpios is setup automatically according to version. This data is shared between the interface driver and the spi driver by exported symbols so not sure how well outa tree compiles will go, make sure your kernel doesnt have module versioning support enabled (MODVERSIONS) and worse come worse you can always manually add the symbols to the Module.symvers. and dont use insmod but cp it to your `lib/modules`. 
+I highly recommend integrating the driver into source tree or using one my of kernels `github.com/bm16ton`. These changes are probly very simple easy things for smart people, but all my knowledge comes exclusively from looking at other code/examples/commits even the most basic of structures and wording can take me hour and hundreds of compiles. So things are bound to be wrong (IE gpio lookup tables for dc,reset,interrupts ignore naming of that last one was playing with polled gpio irq) but its working. Any help would be super greatly appreciated. Dumping even the raw hex of the eeprom via the new sysfs file is gonna be a mountain for me, so please. 
 
 PLATFORM DATA; Uhg so diff devices seem to want/need diff ways of providing platform data? At least some drivers dont work with same methods others do like fbtft fb_ili9341 will not take anything gpios, setup data etc, but tinydrm ili9341 takes right off with the dc reset pins. 5.15 has not helped this situation, devices/drivers load no errors, but nothing populated in /dev IE spidev no longer works with modalias spidev I just picked a random off the list "spi-petra" and it enumerates. If a driver doesnt work look at its spi_device_id list and choose from it. If it doesnt have a spi_device_id list most likely thats why it aint working so create one. 
 
 FBTFT FB_ILI9341; As mentioned no idea how to pass the platform data to this driver (without hard coding the path to it main headerfile) So I just up-ported ?that the right word? the old fbtft folder with fbtft_device (a kernel module that just loads the required data to the various fbtft modules) and it works slick. I use the following script to load it, everything is auto detected except the spi bus num that u need to edit manually.
 
-'''
+```sh
 #!/bin/bash
 sudo modprobe fbtft_device custom name=fb_ili9341 busnum=0 gpios=dc:$(sudo cat /sys/kernel/debug/gpio | grep -i dc | awk '{print $1}' | sed -e 's/gpio-//g'),reset:$(sudo cat /sys/kernel/debug/gpio | grep -i reset | awk '{print $1}' | sed -e 's/gpio-//g') speed=30000000 rotate=90 bgr=1 fps=60
-'''
+```
 
-UPDATE: added property support to the spi driver, and gpio naming. Currently pin numbers (amount avail) are set for ft4232 will do an update for ft2232 someday (uhg) Also with the product (in ftdi eeprom) set to ft2232H-16ton or ft4232H-16ton, and the ftdi_sio patch applied, ftdi_sio will ignore the first 2 interfaces (on ft4232 or both interfaces on ft2232) and the spi driver will attach to the first interface and i2c on second (and ftdi_sio serial on interfaces 3/4 on ft4232 and shit outa luck on serial for ft2232 in this setup) In my x86 kernel source (tons of stuff for i2c spi etc in this kernel) I have brought back fb-device because god help me I cannot get the fb-ili9341 from fbtft to take the platform data it needs. Seemingly all options for platform data with fbtft have been removed except for devicetree...and I cannot fake it yet. I did have the tinydrm ili9341 driver taking the platform data correctly from driver and loading but now it just freezes my machines. I was playing with gpio-lookup instead of  ftdi_spi_bus_dev_io and maybe thats when it was working or kernel changes broke the setup (been a while in between testings with newer kernel versions in between) ill throw a script to make loading the fbtft fb-device fb_ili9341 stuff easier, itll auto detect the gpio pin numbers assigned to dc/reset by your machine but you will have to edit it for the spi bus number. 
+> UPDATE: added property support to the spi driver, and gpio naming. Currently pin numbers (amount avail) are set for ft4232 will do an update for ft2232 someday (uhg) Also with the product (in ftdi eeprom) set to ft2232H-16ton or ft4232H-16ton, and the ftdi_sio patch applied, ftdi_sio will ignore the first 2 interfaces (on ft4232 or both interfaces on ft2232) and the spi driver will attach to the first interface and i2c on second (and ftdi_sio serial on interfaces 3/4 on ft4232 and shit outa luck on serial for ft2232 in this setup) In my x86 kernel source (tons of stuff for i2c spi etc in this kernel) I have brought back fb-device because god help me I cannot get the fb-ili9341 from fbtft to take the platform data it needs. Seemingly all options for platform data with fbtft have been removed except for devicetree...and I cannot fake it yet. I did have the tinydrm ili9341 driver taking the platform data correctly from driver and loading but now it just freezes my machines. I was playing with gpio-lookup instead of  ftdi_spi_bus_dev_io and maybe thats when it was working or kernel changes broke the setup (been a while in between testings with newer kernel versions in between) ill throw a script to make loading the fbtft fb-device fb_ili9341 stuff easier, itll auto detect the gpio pin numbers assigned to dc/reset by your machine but you will have to edit it for the spi bus number. 
 
 my kernel source with these drivers plus lots more already added; https://github.com/bm16ton/linux-kernel
 
-to integrate these into your own kernel source 
-
+To integrate these into your own kernel source 
+```sh
 cd kernel-source
 
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/i2c-ftdi/mpsse.h drivers/i2c/busses/mpsse.h
 
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/i2c-ftdi/i2c-ftdi.c drivers/i2c/busses/i2c-ftdi.c
+```
 
-edit drivers/i2c/busses/Kconfig
+#### Edit Kconfig file located at `drivers/i2c/busses/Kconfig`
 
 EXAMPLE KCONFIG FOR i2c-ftdi;
-```
+
+```make
 config I2C_FTDI
 	tristate "ft2232h I2C master support"
 	depends on USB
@@ -64,16 +67,18 @@ config I2C_FTDI
 	  Say yes here to access the I2C part of the ftdi
 	  ft2232h, and probly others.
 ```
+
 EXAMPLE Makefile entry for i2c-ftdi
-
+```make
 obj-$(CONFIG_I2C_FTDI)	+= i2c-ftdi.o
-
+````
 for spi;
-
+And follow with shell copy command
+```sh
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/ft232h-intf.c drivers/usb/misc/
-
-EXAMPLE Kconfig for ft232h-intf; edit drivers/usb/misc/Kconfig;
 ```
+EXAMPLE Kconfig for ft232h-intf; edit drivers/usb/misc/Kconfig;
+```make
 config USB_FT232H_INTF
 	tristate "FTDI FT232H SPI and platform data configuration interface driver"
 	help
@@ -86,10 +91,13 @@ config USB_FT232H_INTF
 	 module will be called ft232h_intf.
 ```
 EXAMPLE Makefile for ft232h-intf
-
+```make
 obj-$(CONFIG_USB_FT232H_INTF)		+= ft232h-intf.o
-
+```
+And follow with shell copy command
+```
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/spi-ftdi-mpsse.c drivers/spi/
+```
 
 Example Kconfig; drivers/spi/Kconfig;
 ```
@@ -103,11 +111,13 @@ config SPI_FTDI_MPSSE
 	  SPI controller in master mode.
 ```
 example Makefile; 
-
+```make
 obj-$(CONFIG_SPI_FTDI_MPSSE)		+= spi-ftdi-mpsse.o
-
+```
+And follow with shell copy command
+```sh
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/ft232h-intf.h ./include/linux/usb/ft232h-intf.h
-
+```
 And that should do it!
 
 the spi driver originally came from;
