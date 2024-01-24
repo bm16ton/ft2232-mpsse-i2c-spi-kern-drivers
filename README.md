@@ -21,16 +21,9 @@ A firmware for various st32f4's and stm32f103 for ub to i2c with gpio with irq s
 Unfortunatly the ft4233hpq is too new for any support from libftdi or pyftdi etc so non of the open source eepom writing utils for linux/opensource currently work. Gotta use ft-prog toset the product name to 16ton*
 Maybe other stuff? I dont remember 
 
-'''
-model ft4232h or ft2232h auto detected
-amount of gpios auto setup for each model
-raw eeprom dump to syslog
-kernel 5.15 did some funky spi things, IE spidev as modalias no longer works I use spi-petra now
-/sys/kernel/mpsse_sysfs/eeprom gets created but isnt implemented (help would be great lol)
-auto gpio numbers is a bit hackish so keep CS at GPIOL3 and below (dont go higher then 4)
-Added of_tables and spi_tables tho this is a platform driver so not sure how to connect the spi_table
+Model `ft4232h` or `ft2232h` auto detected amount of gpios auto setup for each model
+raw eeprom dump to syslog kernel 5.15 did some funky spi things, IE spidev as modalias no longer works I use spi-petra now `/sys/kernel/mpsse_sysfs/eeprom` gets created but isnt implemented (help would be great lol) auto gpio numbers is a bit hackish so keep CS at GPIOL3 and below (dont go higher then 4) Added of_tables and spi_tables tho this is a platform driver so not sure how to connect the spi_table
 various fixes
-'''
 
 - *OUT_OF_TREE_COMPILES* 1st replace #include `<linux/usb/ft232h-intf.h>` with `#include "linux/usb/ft232h-intf.h"` in both `ft232h-intf.c` and `spi-ftdi-mpsse.c`. So model number is now detected ft4232h vs ft2232h and the amount of gpios is setup automatically according to version. This data is shared between the interface driver and the spi driver by exported symbols so not sure how well outa tree compiles will go, make sure your kernel doesnt have module versioning support enabled (MODVERSIONS) and worse come worse you can always manually add the symbols to the Module.symvers. and dont use insmod but cp it to your `lib/modules`. 
 I highly recommend integrating the driver into source tree or using one my of kernels `github.com/bm16ton`. These changes are probly very simple easy things for smart people, but all my knowledge comes exclusively from looking at other code/examples/commits even the most basic of structures and wording can take me hour and hundreds of compiles. So things are bound to be wrong (IE gpio lookup tables for dc,reset,interrupts ignore naming of that last one was playing with polled gpio irq) but its working. Any help would be super greatly appreciated. Dumping even the raw hex of the eeprom via the new sysfs file is gonna be a mountain for me, so please. 
