@@ -1,6 +1,8 @@
+# Linux ft2232/mpsse/i2c/spi kernel drivers/modules
+
 These are linux drivers for ftdi mpsse devices i2c spi.
 
-> UPDATES:
+### UPDATES:
 
 Tired of rewritting eeprom of ft232h series between spi/i2c so i wrote a few more kernel parameters, udev rule, systemd service , and a simple first draft gui app that starts when the ft232h is plugged in (make sure product is ft232h-16ton) that lets you select i2c/spi/uart and options. Simply cd ftgui and run ./install-ftgui.sh   this will install all dependencies for gtkdialog then gtkdialogs souce compile it and install it, then install the udev rule, the systemd service, and gui app. Now when ft232h is plugged in it should autostart the app.
 Remember to also patch ftdi-sio with the new ftdi-sio/2nd-ftdi_sio.patch patch.
@@ -39,10 +41,14 @@ FBTFT FB_ILI9341; As mentioned no idea how to pass the platform data to this dri
 
 ```sh
 #!/bin/bash
-sudo modprobe fbtft_device custom name=fb_ili9341 busnum=0 gpios=dc:$(sudo cat /sys/kernel/debug/gpio | grep -i dc | awk '{print $1}' | sed -e 's/gpio-//g'),reset:$(sudo cat /sys/kernel/debug/gpio | grep -i reset | awk '{print $1}' | sed -e 's/gpio-//g') speed=30000000 rotate=90 bgr=1 fps=60
+sudo modprobe fbtft_device custom name=fb_ili9341 \
+busnum=0 gpios=dc:$(sudo cat /sys/kernel/debug/gpio \
+| grep -i dc | awk '{print $1}' | sed -e 's/gpio-//g'),reset:$(sudo cat /sys/kernel/debug/gpio | \
+grep -i reset | awk '{print $1}' | sed -e 's/gpio-//g') speed=30000000 rotate=90 bgr=1 fps=60
 ```
 
-> UPDATE: added property support to the spi driver, and gpio naming. Currently pin numbers (amount avail) are set for ft4232 will do an update for ft2232 someday (uhg) Also with the product (in ftdi eeprom) set to ft2232H-16ton or ft4232H-16ton, and the ftdi_sio patch applied, ftdi_sio will ignore the first 2 interfaces (on ft4232 or both interfaces on ft2232) and the spi driver will attach to the first interface and i2c on second (and ftdi_sio serial on interfaces 3/4 on ft4232 and shit outa luck on serial for ft2232 in this setup) In my x86 kernel source (tons of stuff for i2c spi etc in this kernel) I have brought back fb-device because god help me I cannot get the fb-ili9341 from fbtft to take the platform data it needs. Seemingly all options for platform data with fbtft have been removed except for devicetree...and I cannot fake it yet. I did have the tinydrm ili9341 driver taking the platform data correctly from driver and loading but now it just freezes my machines. I was playing with gpio-lookup instead of  ftdi_spi_bus_dev_io and maybe thats when it was working or kernel changes broke the setup (been a while in between testings with newer kernel versions in between) ill throw a script to make loading the fbtft fb-device fb_ili9341 stuff easier, itll auto detect the gpio pin numbers assigned to dc/reset by your machine but you will have to edit it for the spi bus number. 
+### UPDATE: 
+Added property support to the spi driver, and gpio naming. Currently pin numbers (amount avail) are set for ft4232 will do an update for ft2232 someday (uhg) Also with the product (in ftdi eeprom) set to ft2232H-16ton or ft4232H-16ton, and the ftdi_sio patch applied, ftdi_sio will ignore the first 2 interfaces (on ft4232 or both interfaces on ft2232) and the spi driver will attach to the first interface and i2c on second (and ftdi_sio serial on interfaces 3/4 on ft4232 and shit outa luck on serial for ft2232 in this setup) In my x86 kernel source (tons of stuff for i2c spi etc in this kernel) I have brought back fb-device because god help me I cannot get the fb-ili9341 from fbtft to take the platform data it needs. Seemingly all options for platform data with fbtft have been removed except for devicetree...and I cannot fake it yet. I did have the tinydrm ili9341 driver taking the platform data correctly from driver and loading but now it just freezes my machines. I was playing with gpio-lookup instead of  ftdi_spi_bus_dev_io and maybe thats when it was working or kernel changes broke the setup (been a while in between testings with newer kernel versions in between) ill throw a script to make loading the fbtft fb-device fb_ili9341 stuff easier, itll auto detect the gpio pin numbers assigned to dc/reset by your machine but you will have to edit it for the spi bus number. 
 
 my kernel source with these drivers plus lots more already added; https://github.com/bm16ton/linux-kernel
 
