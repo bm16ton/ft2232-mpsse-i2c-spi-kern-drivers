@@ -27,13 +27,18 @@ various fixes
 
 - *OUT_OF_TREE_COMPILES* 1st replace #include `<linux/usb/ft232h-intf.h>` with `#include "linux/usb/ft232h-intf.h"` in both `ft232h-intf.c` and `spi-ftdi-mpsse.c`. So model number is now detected ft4232h vs ft2232h and the amount of gpios is setup automatically according to version. This data is shared between the interface driver and the spi driver by exported symbols so not sure how well outa tree compiles will go, make sure your kernel doesnt have module versioning support enabled (MODVERSIONS) and worse come worse you can always manually add the symbols to the Module.symvers. and dont use insmod but cp it to your `lib/modules`. 
 I highly recommend integrating the driver into source tree or using one my of kernels `github.com/bm16ton`. These changes are probly very simple easy things for smart people, but all my knowledge comes exclusively from looking at other code/examples/commits even the most basic of structures and wording can take me hour and hundreds of compiles. So things are bound to be wrong (IE gpio lookup tables for dc,reset,interrupts ignore naming of that last one was playing with polled gpio irq) but its working. Any help would be super greatly appreciated. Dumping even the raw hex of the eeprom via the new sysfs file is gonna be a mountain for me, so please. 
-- *PLATFORM DATA*; Uhg so diff devices seem to want/need diff ways of providing platform data? At least some drivers dont work with same methods others do like fbtft fb_ili9341 will not take anything gpios, setup data etc, but tinydrm ili9341 takes right off with the dc reset pins. 5.15 has not helped this situation, devices/drivers load no errors, but nothing populated in /dev IE spidev no longer works with modalias spidev I just picked a random off the list "spi-petra" and it enumerates. If a driver doesnt work look at its spi_device_id list and choose from it. If it doesnt have a spi_device_id list most likely thats why it aint working so create one. 
+
+- *PLATFORM DATA*; Uhg so diff devices seem to want/need diff ways of providing platform data? At least some drivers dont work with same methods others do like fbtft fb_ili9341 will not take anything gpios, setup data etc, but tinydrm ili9341 takes right off with the dc reset pins. 5.15 has not helped this situation, devices/drivers load no errors, but nothing populated in /dev IE spidev no longer works with modalias spidev I just picked a random off the list "spi-petra" and it enumerates. If a driver doesnt work look at its spi_device_id list and choose from it. If it doesnt have a spi_device_id list most likely thats why it aint working so create one.
+
 -*FBTFT FB_ILI9341*; As mentioned no idea how to pass the platform data to this driver (without hard coding the path to it main headerfile) So I just up-ported ?that the right word? the old fbtft folder with fbtft_device (a kernel module that just loads the required data to the various fbtft modules) and it works slick. I use the following script to load it, everything is auto detected except the spi bus num that u need to edit manually.
 
 ```sh
 #!/bin/bash
 sudo modprobe fbtft_device custom name=fb_ili9341 busnum=0 \
- gpios=dc:$(sudo cat /sys/kernel/debug/gpio | grep -i dc | awk '{print $1}' | sed -e 's/gpio-//g'),reset:$(sudo cat /sys/kernel/debug/gpio | grep -i reset | awk '{print $1}' | sed -e 's/gpio-//g') speed=30000000 rotate=90 bgr=1 fps=60
+gpios=dc:$(sudo cat /sys/kernel/debug/gpio | grep -i dc \
+| awk '{print $1}' | sed -e 's/gpio-//g'),reset:$(sudo cat /sys/kernel/debug/gpio | grep -i reset | \
+awk '{print $1}' | sed -e 's/gpio-//g') \
+speed=30000000 rotate=90 bgr=1 fps=60
 ```
 
 ### UPDATE:
@@ -91,12 +96,12 @@ Example Makefile for ft232h-intf
 obj-$(CONFIG_USB_FT232H_INTF)		+= ft232h-intf.o
 ```
 And follow with shell copy command
-```
+```sh
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/spi-ftdi-mpsse.c drivers/spi/
 ```
 
 Example Kconfig; drivers/spi/Kconfig;
-```
+```make
 config SPI_FTDI_MPSSE
 	tristate "FTDI MPSSE SPI controller"
 	depends on USB_FT232H_INTF || COMPILE_TEST || GPIOLIB && SYSFS
@@ -106,83 +111,64 @@ config SPI_FTDI_MPSSE
 	  FT232H supports SPI in MPSSE mode. This driver provides MPSSE
 	  SPI controller in master mode.
 ```
-Example Makefile; 
+
+Example Makefile;
 ```make
 obj-$(CONFIG_SPI_FTDI_MPSSE)		+= spi-ftdi-mpsse.o
 ```
+
 And follow with shell copy command
+
 ```sh
 cp ../ft2232-mpsse-i2c-spi-kern-drivers/spi-ftdi/ft232h-intf.h ./include/linux/usb/ft232h-intf.h
 ```
 And that should do it!
 
-the spi driver originally came from;
 
- http://git-old.denx.de/?p=linux-denx/linux-denx-agust.git
+the spi driver originally came from [Denx.de old git repository](http://git-old.denx.de/?p=linux-denx/linux-denx-agust.git)
+only slight edits where needed. Add your spi device module alias and cs
+pin info to line 1203 of ft232h-intf.c , then recompile, i use in tree but
+will write a Makefile someday. For in tree cp ft232h-intf.c to drivers/usb/misc
+```sh
+ cp ft232h-int.h  include/linux/usb/
+```
+ and 
+```sh
+cp spi-ftdi-mpsse.c drivers/spi/
+```
+Then edit the Kconfig and Makefiles checkout my kernel for [examples](https://github.com/bm16ton/yoga-c630-linux-kernel)
+The i2c came from https://github.com/krinkinmu/bootlin also checkout his awesome writeup on [reverse engineering mpsse](https://krinkinmu.github.io/2020/08/02/ftdi.html)
+- https://krinkinmu.github.io/2020/09/05/ftdi-protocol.html
+- https://krinkinmu.github.io/2020/09/06/ftdi-i2c.html
 
- only slight edits where needed. Add your spi device module alias and cs
+This driver I had to change more on to get it to work, the control usb packets, Added smbus support, all relatively minor. These have been tested on ft2232h, kernel 5.12,and on mpsse bank A only.
 
- pin info to line 1203 of ft232h-intf.c , then recompile, i use in tree but
-
- will write a Makefile someday. For in tree cp ft232h-intf.c to drivers/usb/misc
-
- cp ft232h-int.h to include/linux/usb/ and cp spi-ftdi-mpsse.c to
-
- drivers/spi/ then edit the Kconfig and Makefiles checkout my kernel for examples
-
- https://github.com/bm16ton/yoga-c630-linux-kernel
-
- The i2c came from https://github.com/krinkinmu/bootlin also checkout his
-
- awesome writeup on reverse engineering mpsse;
-
- https://krinkinmu.github.io/2020/08/02/ftdi.html
-
- https://krinkinmu.github.io/2020/09/05/ftdi-protocol.html
-
- https://krinkinmu.github.io/2020/09/06/ftdi-i2c.html
-
- This driver I had to change more on to get it to work, the control usb
-
- packets, Added smbus support, all relatively minor.
-
- These have been tested on ft2232h, kernel 5.12,and on mpsse bank A only.
-
- UPDATE i2c-ftdi only binds to bank A now,also patch included for ftdi-sio
-
- to skip bank A if Product string is ft2232H-16ton (use ftdi_eeprom)
-
+#### UPDATE
+`i2c-ftdi` only binds to bank A now,also patch included for ftdi-sio to skip bank A if Product string is ft2232H-16ton (use ftdi_eeprom)
  ---old Even tho these will bind to both banks doubtful bank B will work in
-
  ---oldcurrent configuration.
+ 
+#### SPI TODO
+find better way to supply spi device
+platform data (mod params? add info to eeprom?) maybe do a dirty hack for irq pin.
+#### I2C TODO
+Add sysfs entry for changing bus speed, was more but dont remember atm.
+#### TODO 
+ ~BETTER README! Its late uhm or early now and just got it working, ill update more later.~
 
- SPI TODO,find better way to supply spi device
+#### UPDATE 
 
- platformdata (mod params? add info to eeprom?) maybe do a dirty hack for irq pin.
-
- I2C TODO, Add sysfs entry for changing bus speed, was more but dont remember atm.
-
- TODO BETTER README! Its late uhm or early now and just got it working, ill
-
- update more later.
-
-
-UPDATE the rx and tx function ftdi_spi_tx_rx was erroring on spidev devices without
-
-mosi, so its disabled. lines 362 uncomment/recomment that section to bring back
-
-in spi-ftdimpsse.c Also starting sumwhere in 5.13 spi delay_usecs got switched to
-
-delay.value. If on older kernel replace lines starting at 381 in spi-ftdimpsse.c
-
+The rx and tx function ftdi_spi_tx_rx was erroring on spidev devices without mosi, so its disabled. lines 362 uncomment/recomment that section to bring back in spi-ftdimpsse.c Also starting sumwhere in 5.13 spi delay_usecs got switched to delay.value. If on older kernel replace lines starting at 381 in spi-ftdimpsse.c
+```
 		if (t->delay.value) {
 			u16 us = t->delay.value;
-
+```
 with;
-
+```
 		if (t->delay_usecs) {
 			u16 us = t->delay_usecs;
-
+```
 The i2c driver now has a kernel param to switch 400k and 100k
 
-TODO make i2c speed a sysfs option, add gpio to i2c, etc etc
+#### TODO 
+- Make i2c speed a sysfs option, add gpio to i2c, etc etc
