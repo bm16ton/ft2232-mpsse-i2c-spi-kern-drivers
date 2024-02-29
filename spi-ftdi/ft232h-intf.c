@@ -118,7 +118,8 @@
 #include <linux/spi/spi.h>
 #include <linux/usb/ch9.h>
 #include <linux/usb.h>
-#include <linux/usb/ft232h-intf.h>
+//#include <linux/usb/ft232h-intf.h>
+#include "ft232h-intf.h"
 //16ton
 #include <linux/version.h>
 #include <linux/property.h>
@@ -298,12 +299,14 @@ static int create_sysfs_attrs(struct usb_interface *intf)
 	return retval;
 }
 
+/*
 static void remove_sysfs_attrs(struct usb_interface *intf)
 {
 
 //			device_remove_file(&intf->dev, &dev_attr_eeprom);
             sysfs_remove_file(kobj_ref,&eeprom.attr);
 }
+*/
 
 /* Use baudrate calculation borrowed from libftdi */
 static int ftdi_to_clkbits(int baudrate, unsigned int clk, int clk_div,
@@ -1353,18 +1356,21 @@ static int ft232h_intf_add_mpsse_gpio(struct ft232h_intf_priv *priv)
 	priv->mpsse_gpio.get = ftdi_mpsse_gpio_get;
 	priv->mpsse_gpio.direction_input = ftdi_mpsse_gpio_direction_input;
  	priv->mpsse_gpio.direction_output = ftdi_mpsse_gpio_direction_output;
-    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0)
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0) 
     ;
-    #else
+    #endif
+//    #else
 	if (irqpoll) {
 	    priv->mpsse_gpio.to_irq = ftdi_mpsse_gpio_to_irq;
     	priv->irq.name = "usbgpio-irq";
     	priv->irq.irq_set_type = usbirq_irq_set_type;
         priv->irq.irq_enable = usb_gpio_irq_enable;
         priv->irq.irq_disable = usb_gpio_irq_disable;
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0)
         .flags = IRQCHIP_IMMUTABLE, GPIOCHIP_IRQ_RESOURCE_HELPERS,
+    #endif
 	}
-	#endif
+//	#endif
 	names = devm_kcalloc(dev, priv->mpsse_gpio.ngpio, sizeof(char *),
 			     GFP_KERNEL);
 	if (!names)

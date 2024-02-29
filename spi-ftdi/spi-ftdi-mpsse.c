@@ -26,7 +26,8 @@
 #include <linux/types.h>
 #include <linux/sizes.h>
 #include <linux/usb.h>
-#include <linux/usb/ft232h-intf.h>
+//#include <linux/usb/ft232h-intf.h>
+#include "ft232h-intf.h"
 
 #include <linux/of.h>
 #include <linux/of_gpio.h>
@@ -73,7 +74,7 @@ static void ftdi_spi_set_cs(struct spi_device *spi, bool enable)
 	u16 cs = spi->chip_select;
 
 	if (spi_ftdi_mpsse_debug) {
-	dev_dbg(&priv->pdev->dev, "%s: CS %u, cs mode %d, val %d\n",
+	dev_dbg(&priv->pdev->dev, "%s: CS %u, cs mode %ld, val %d\n",
 		__func__, cs, (spi->mode & SPI_CS_HIGH), enable);
 	}
 
