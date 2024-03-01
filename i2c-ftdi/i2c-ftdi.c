@@ -63,15 +63,17 @@ struct ftdi_usb {
 	unsigned freq;
 };
 
+static int ftdi_mpsse_i2c_setup(struct ftdi_usb *ftdi);
+
 static ssize_t i2cfreq_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct ftdi_usb *ftdi = dev_get_drvdata(dev);
 	int ret2;
 
-		ret2 = ftdi->freq;
+	ret2 = ftdi->freq;
 
-		return scnprintf(buf, PAGE_SIZE, "%d\n", ret2);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", ret2);
 }
 
 /*
@@ -81,7 +83,19 @@ static ssize_t i2cfreq_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *valbuf, size_t count)
 {
-        return count;
+	struct ftdi_usb *ftdi = dev_get_drvdata(dev);
+	struct usb_interface *interface;
+	u8 ret3;
+	u8 speed;
+	int ret2 = 0;
+	ret2 = kstrtou8(valbuf, 10, &speed);
+
+	ftdi->freq = speed;
+	ret3 = ftdi_mpsse_i2c_setup(ftdi);
+	if (ret3 < 0)
+		dev_info(&interface->dev, "i2c speed change failed error # %d\n", ret3);
+
+    return count;
 }
 static DEVICE_ATTR_RW(i2cfreq);
 
@@ -89,8 +103,8 @@ static int create_sysfs_attrs(struct usb_interface *interface)
 {
 	int retval = 0;
 
-			retval = device_create_file(&interface->dev,
-						    &dev_attr_i2cfreq);
+	retval = device_create_file(&interface->dev,
+					&dev_attr_i2cfreq);
 
 	return retval;
 }

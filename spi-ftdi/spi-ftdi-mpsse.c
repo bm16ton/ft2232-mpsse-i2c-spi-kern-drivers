@@ -13,6 +13,7 @@
 #include <linux/version.h>
 
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h>
 #include <linux/platform_device.h>
@@ -26,8 +27,7 @@
 #include <linux/types.h>
 #include <linux/sizes.h>
 #include <linux/usb.h>
-//#include <linux/usb/ft232h-intf.h>
-#include "ft232h-intf.h"
+#include <linux/usb/ft232h-intf.h>
 
 #include <linux/of.h>
 #include <linux/of_gpio.h>
@@ -520,7 +520,7 @@ static int ftdi_spi_init_io(struct spi_controller *master, unsigned int dev_idx)
 
 	priv->lookup[cs] = lookup;
 	gpiod_add_lookup_table(lookup);
-	
+
 	return 0;
 }
 
@@ -531,7 +531,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	struct spi_controller *master;
 	struct ftdi_spi *priv;
 	struct gpio_desc *desc;
-	u16 num_cs, max_cs = 0;   //removed dc, reset, interrupts, irq, 
+	u16 num_cs, max_cs = 0;   //removed dc, reset, interrupts, irq,
 	unsigned int i;
 	int ret;
 //	int ret2;
@@ -540,8 +540,8 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 
 	int ftmod2;
 	int ftmod4;
-    int ftmod1; 
-    
+    int ftmod1;
+
     ftmod1 = 232;
 	ftmod2 = 2232;
 	ftmod4 = 4232;
@@ -570,7 +570,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 			max_cs = pd->spi_info[i].chip_select;
 	}
 
-	if (max_cs > FTDI_MPSSE_GPIOS5 - 1) {
+	if (max_cs > FTDI_MPSSE_GPIOS5) {
 		dev_err(dev, "Invalid max CS in platform data: %u\n", max_cs);
 		return -EINVAL;
 	}
@@ -589,7 +589,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	priv->intf = to_usb_interface(dev->parent);
 	priv->iops = pd->ops;
 
-    
+
 	model = ft232h_intf_get_model(priv->intf);
 	priv->ftmodel = model;
 	dev_info(dev, "model num %d\n", priv->ftmodel);
@@ -611,9 +611,11 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 	master->transfer_one = ftdi_spi_transfer_one;
 	master->auto_runtime_pm = false;
 
+	dev_info(dev, "before cs_gpio \n");
 	priv->cs_gpios = devm_kcalloc(&master->dev, max_cs, sizeof(desc),
 				      GFP_KERNEL);
 	if (!priv->cs_gpios) {
+		dev_info(dev, "priv->cs_gpios failed  \n");
 		spi_controller_put(master);
 		return -ENOMEM;
 	}
@@ -629,7 +631,7 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 
 	priv->irq_gpios = devm_kcalloc(&master->dev, irq, sizeof(desc),
 				      GFP_KERNEL);
-*/				      
+*/
 	for (i = 0; i < num_cs; i++) {
 		unsigned int idx = pd->spi_info[i].chip_select;
 
@@ -641,7 +643,9 @@ static int ftdi_spi_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "CS %u gpiod err: %d\n", i, ret);
 			continue;
 		}
+		dev_info(dev, "before cs_gpio desc\n");
 		priv->cs_gpios[idx] = desc;
+		dev_info(dev, "after cs_gpio desc\n");
 	}
 
 	ret = spi_register_controller(master);
@@ -711,8 +715,8 @@ static int ftdi_spi_slave_release(struct device *dev, void *data)
 	dev_dbg(dev, "%s: remove CS %u\n", __func__, cs);
 	spi_unregister_device(to_spi_device(dev));
 
-	if (priv->lookup[cs])
-		gpiod_remove_lookup_table(priv->lookup[cs]);
+//	if (priv->lookup[cs])
+//		gpiod_remove_lookup_table(priv->lookup[cs]);
 	return 0;
 }
 
